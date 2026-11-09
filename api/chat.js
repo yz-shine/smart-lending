@@ -1,6 +1,8 @@
 import {
   routingInstruction,
-  resolveReply
+  resolveReply,
+  directReply,
+  parseDecision
 } from '../lib/zico-policy.js';
 
 import {
@@ -67,6 +69,15 @@ export default async function handler(req, res) {
     await limit('chat-global', 150, 86400);
 
     const context = getModule(moduleId);
+    const preparedReply = directReply(text);
+    if (preparedReply) {
+      await sql(
+        'INSERT INTO zico_chat_events(user_id, module) VALUES($1, $2)',
+        [user.id, context?.id || null]
+      );
+      json(res, 200, { text: preparedReply });
+      return;
+    }
 
     const contents = history.map(message => ({
       role: message.role === 'assistant' ? 'model' : 'user',
@@ -103,7 +114,7 @@ export default async function handler(req, res) {
             },
             contents,
             generationConfig: {
-              maxOutputTokens: 300,
+              maxOutputTokens: 2048,
               temperature: 0,
               responseMimeType: 'application/json'
             }
@@ -184,12 +195,12 @@ export default async function handler(req, res) {
       );
     }
 
-    let decision;
-
-    try {
-      decision = JSON.parse(answer);
-    } catch {
-      decision = null;
+    const decision = parseDecision(answer);
+    if (!decision) {
+      throw Object.assign(
+        new Error('Не удалось обработать ответ Gemini. Попробуй отправить вопрос ещё раз.'),
+        { status: 502 }
+      );
     }
 
     await sql(
