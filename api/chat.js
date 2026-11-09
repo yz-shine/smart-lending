@@ -1,3 +1,206 @@
-import {routingInstruction,resolveReply} from '../lib/zico-policy.js';
-import {requireUser,json,fail,post,limit,sql} from '../lib/db.js';import {systemInstruction} from '../lib/prompt.js';import {getModule} from '../assets/content.js';
-export default async function handler(req,res){try{post(req);const u=await requireUser(req);const {text,history=[],module:moduleId}=req.body||{};if(typeof text!=='string'||!text.trim()||text.length>2000||!Array.isArray(history)||history.length>8||history.some(m=>!['user','assistant'].includes(m.role)||typeof m.text!=='string'||m.text.length>3000))throw Object.assign(Error('Сократи сообщение или начни новый разбор.'),{status:400});if(!process.env.GEMINI_API_KEY||!process.env.GEMINI_MODEL)throw Object.assign(Error('Zico ещё не подключён к Gemini. Владельцу нужно добавить ключ и модель в настройках Vercel.'),{status:503});await limit('chat-minute:'+u.id,5,60);await limit('chat-day:'+u.id,30,86400);await limit('chat-global',150,86400);const context=getModule(moduleId);const contents=history.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.text}]}));contents.push({role:'user',parts:[{text}]});const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(process.env.GEMINI_MODEL)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':process.env.GEMINI_API_KEY},body:JSON.stringify({systemInstruction:{parts:[{text:systemInstruction+'\n'+routingInstruction+(context?'\nСейчас открыта тема '+context.title:'')}]},contents,generationConfig:{maxOutputTokens:300,temperature:0,responseMimeType:"application/json"}}),signal:AbortSignal.timeout(40000)});if(!response.ok)throw Object.assign(Error(response.status===429?'Бесплатный лимит Gemini временно исчерпан. Попробуй позже.':'Не удалось получить ответ Gemini. Владельцу нужно проверить ключ и доступность выбранной модели.'),{status:response.status===429?429:502});const data=await response.json();const answer=data.candidates?.[0]?.content?.parts?.filter(p=>!p.thought).map(p=>p.text||'').join('').trim();if(!answer)throw Object.assign(Error('Не удалось сформировать учебную подсказку. Переформулируй вопрос.'),{status:502});await sql('INSERT INTO zico_chat_events(user_id,module) VALUES($1,$2)',[u.id,context?.id||null]);let decision;try{decision=JSON.parse(answer)}catch{decision=null}json(res,200,{text:resolveReply(decision)})}catch(e){fail(res,e)}}
+import {
+  routingInstruction,
+  resolveReply
+} from '../lib/zico-policy.js';
+
+import {
+  requireUser,
+  json,
+  fail,
+  post,
+  limit,
+  sql
+} from '../lib/db.js';
+
+import { systemInstruction } from '../lib/prompt.js';
+import { getModule } from '../assets/content.js';
+
+export default async function handler(req, res) {
+  try {
+    post(req);
+
+    const user = await requireUser(req);
+    const {
+      text,
+      history = [],
+      module: moduleId
+    } = req.body || {};
+
+    const invalidHistory =
+      !Array.isArray(history) ||
+      history.length > 8 ||
+      history.some(message =>
+        !message ||
+        !['user', 'assistant'].includes(message.role) ||
+        typeof message.text !== 'string' ||
+        message.text.length > 3000
+      );
+
+    if (
+      typeof text !== 'string' ||
+      !text.trim() ||
+      text.length > 2000 ||
+      invalidHistory
+    ) {
+      throw Object.assign(
+        new Error('Сократи сообщение или начни новый разбор.'),
+        { status: 400 }
+      );
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const model = process.env.GEMINI_MODEL?.trim();
+
+    if (!apiKey || !model) {
+      throw Object.assign(
+        new Error(
+          'Zico ещё не подключён к Gemini. ' +
+          'В настройках Vercel нужно добавить GEMINI_API_KEY ' +
+          'и GEMINI_MODEL, затем выполнить Redeploy.'
+        ),
+        { status: 503 }
+      );
+    }
+
+    await limit('chat-minute:' + user.id, 5, 60);
+    await limit('chat-day:' + user.id, 30, 86400);
+    await limit('chat-global', 150, 86400);
+
+    const context = getModule(moduleId);
+
+    const contents = history.map(message => ({
+      role: message.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: message.text }]
+    }));
+
+    contents.push({
+      role: 'user',
+      parts: [{ text: text.trim() }]
+    });
+
+    const instruction =
+      systemInstruction +
+      '\n' +
+      routingInstruction +
+      (context ? '\nСейчас открыта тема ' + context.title : '');
+
+    let response;
+
+    try {
+      response = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/' +
+        encodeURIComponent(model) +
+        ':generateContent',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey
+          },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: instruction }]
+            },
+            contents,
+            generationConfig: {
+              maxOutputTokens: 300,
+              temperature: 0,
+              responseMimeType: 'application/json'
+            }
+          }),
+          signal: AbortSignal.timeout(40000)
+        }
+      );
+    } catch (error) {
+      const timedOut =
+        error.name === 'TimeoutError' ||
+        error.name === 'AbortError';
+
+      throw Object.assign(
+        new Error(
+          timedOut
+            ? 'Gemini не успел ответить. Попробуй немного позже.'
+            : 'Не удалось соединиться с Gemini. Попробуй позже.'
+        ),
+        { status: timedOut ? 504 : 502 }
+      );
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+
+      const googleStatus = String(errorData.error?.status || '')
+        .replace(/[^A-Z_]/g, '')
+        .slice(0, 60);
+
+      const errorCode =
+        String(response.status) +
+        (googleStatus ? ' (' + googleStatus + ')' : '');
+
+      let explanation =
+        'Сообщи этот код владельцу сайта для проверки подключения.';
+
+      if (response.status === 400) {
+        explanation =
+          'Нужно проверить настройки запроса и доступность API для проекта.';
+      } else if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        explanation =
+          'Нужно проверить API-ключ, его ограничения и доступ проекта к Gemini.';
+      } else if (response.status === 404) {
+        explanation =
+          'Нужно проверить название модели в GEMINI_MODEL и её доступность.';
+      } else if (response.status === 429) {
+        explanation =
+          'Достигнут лимит запросов или квота проекта. Попробуй позже.';
+      } else if (response.status >= 500) {
+        explanation =
+          'На стороне Gemini произошла ошибка. Попробуй позже.';
+      }
+
+      throw Object.assign(
+        new Error('Ошибка Gemini ' + errorCode + '. ' + explanation),
+        { status: response.status === 429 ? 429 : 502 }
+      );
+    }
+
+    const data = await response.json();
+
+    const answer = data.candidates?.[0]?.content?.parts
+      ?.filter(part => !part.thought)
+      .map(part => part.text || '')
+      .join('')
+      .trim();
+
+    if (!answer) {
+      throw Object.assign(
+        new Error(
+          'Gemini не вернул текст ответа. ' +
+          'Попробуй переформулировать вопрос.'
+        ),
+        { status: 502 }
+      );
+    }
+
+    let decision;
+
+    try {
+      decision = JSON.parse(answer);
+    } catch {
+      decision = null;
+    }
+
+    await sql(
+      'INSERT INTO zico_chat_events(user_id, module) VALUES($1, $2)',
+      [user.id, context?.id || null]
+    );
+
+    json(res, 200, {
+      text: resolveReply(decision)
+    });
+  } catch (error) {
+    fail(res, error);
+  }
+}
