@@ -15,7 +15,27 @@ const moduleTitle=id=>getModule(id)?.title||'Доставка · исходны�
 function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');setTimeout(()=>$('#toast').classList.remove('show'),3500)}
 async function api(path,body){const r=await fetch('/api/'+path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,credentials:'same-origin'});let data;try{data=await r.json()}catch{throw Error('Сервер пока не подключён. Используй режим просмотра.')}if(!r.ok)throw Error(data.error||'Не удалось выполнить запрос.');return data}
 function resultKey(){return 'zico.results.'+(demo?'demo':user?.id||'guest')}
-function loadLocal(){localResults=read(resultKey(),[])}
+function chatKey() {
+  return user && !demo ? 'zico.chat.' + user.id : null;
+}
+
+function loadLocal() {
+  localResults = read(resultKey(), []);
+  const key = chatKey();
+  const saved = key ? read(key, []) : [];
+  chat = Array.isArray(saved) ? saved.slice(-60).filter(message =>
+    message && ['user', 'assistant'].includes(message.role) &&
+    typeof message.text === 'string'
+  ) : [];
+  drawChat();
+}
+
+function saveChat() {
+  const key = chatKey();
+  if (!key) return;
+  const messages = chat.filter(message => message.role !== 'notice').slice(-60);
+  if (!write(key, messages)) toast('Не удалось сохранить переписку в этом браузере.');
+}
 function navigate(page){if(run&&!['play'].includes(page)&&!confirm('Выйти из текущего разбора? Незавершённые ответы этой попытки не сохранятся.'))return;run=null;location.hash=page;if(location.hash==='#'+page)render()}
 function download(name,data){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),500)}
 let renderFrame=0,pageTransition=null;
@@ -68,14 +88,121 @@ function updateTopNav(page){const key=page.startsWith('module/')||['modules','pl
 window.addEventListener('resize',()=>updateTopNav(location.hash.slice(1)||'home'));
 document.addEventListener('click',e=>{if(!e.target.closest('.nav-dropdown'))closeMenus()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenus()});
 $('#to-top').onclick=()=>window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});window.addEventListener('scroll',()=>$('#to-top').classList.toggle('visible',window.scrollY>450),{passive:true});
-function drawChat(){const log=$('#chat-log');log.replaceChildren();if(!chat.length)addBubble('Привет! Какое сообщение разберём?','assistant',false);for(const m of chat)addBubble(m.text,m.role,false,m.at);if(busy)addBubble('Обдумываю подсказку…','notice',false);log.scrollTop=log.scrollHeight}
-function addBubble(text,role,save=true,at=null){const timestamp=at||(save?new Date().toISOString():null);if(save)chat.push({role,text,at:timestamp});const el=document.createElement('div');el.className='chat-message '+role;const body=document.createElement('span');body.className='chat-text';body.textContent=text;el.append(body);if(timestamp){const date=new Date(timestamp);if(!Number.isNaN(date.getTime())){const time=document.createElement('time');time.className='chat-time';time.dateTime=date.toISOString();time.textContent=date.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',hour12:false});time.title=date.toLocaleString();el.append(time)}}$('#chat-log').append(el)}
+function drawChat() {
+  const log = $('#chat-log');
+  log.replaceChildren();
+  if (!chat.length) {
+    addBubble({text: 'Привет! Какое сообщение разберём?', role: 'assistant'});
+  }
+  for (const message of chat) addBubble(message);
+  if (busy) addBubble({text: 'Обдумываю подсказку…', role: 'notice'});
+  $('#chat-clear').disabled = busy || chat.length === 0;
+  log.scrollTop = log.scrollHeight;
+}
+
+function addBubble({text, role, at, recommendation}) {
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-message ' + role;
+  const body = document.createElement('span');
+  body.className = 'chat-text';
+  body.textContent = text;
+  bubble.append(body);
+
+  const module = getModule(recommendation?.module);
+  if (role === 'assistant' && module) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'chat-module-link';
+    button.textContent = (recommendation.completed ? 'Повторить ' : 'Открыть ') + '«' + module.title + '»';
+    button.onclick = () => {
+      const page = 'module/' + module.id + '/' + (recommendation.completed ? 'practice' : 'theory');
+      navigate(page);
+      if (location.hash === '#' + page) closeChat();
+    };
+    bubble.append(button);
+  }
+
+  if (at) {
+    const date = new Date(at);
+    if (!Number.isNaN(date.getTime())) {
+      const time = document.createElement('time');
+      time.className = 'chat-time';
+      time.dateTime = date.toISOString();
+      time.textContent = date.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit', hour12:false});
+      time.title = date.toLocaleString();
+      bubble.append(time);
+    }
+  }
+  $('#chat-log').append(bubble);
+}
 function openChat(){$('#zico-panel').classList.remove('hidden');requestAnimationFrame(()=>$('#zico-panel').classList.add('is-open')); $('#zico-open').setAttribute('aria-expanded','true');drawChat();$('#chat-input').focus()}
 let closeTimer;function closeChat(){$('#zico-panel').classList.remove('is-open');clearTimeout(closeTimer);closeTimer=setTimeout(()=>{if(!$('#zico-panel').classList.contains('is-open'))$('#zico-panel').classList.add('hidden')},180);$('#zico-open').setAttribute('aria-expanded','false');$('#zico-open').focus()}
-$('#chat-form').onsubmit=async e=>{e.preventDefault();if(busy)return;const text=$('#chat-input').value.trim();if(!text)return;busy=true;$('#chat-send').disabled=true;const history=chat.filter(x=>['user','assistant'].includes(x.role)).slice(-8);chat.push({role:'user',text,at:new Date().toISOString()});$('#chat-input').value='';drawChat();try{if(!user||demo)throw Error('Чтобы получить подсказку Zico, войди в аккаунт на подключённом сайте.');const d=await api('chat',{text,history,module:run?.module||null});chat.push({role:'assistant',text:d.text,at:new Date().toISOString()});savedChatCount++;if(run)run.helpCount++}catch(err){chat.push({role:'notice',text:err.message,at:new Date().toISOString()})}finally{busy=false;$('#chat-send').disabled=false;drawChat()}};
+const clearChat = document.createElement('button');
+clearChat.type = 'button';
+clearChat.id = 'chat-clear';
+clearChat.className = 'chat-clear';
+clearChat.textContent = 'Очистить чат';
+clearChat.disabled = true;
+$('#chat-form').append(clearChat);
+clearChat.onclick = () => {
+  if (busy || !confirm('Очистить переписку Zico в этом браузере?')) return;
+  chat = [];
+  saveChat();
+  drawChat();
+  $('#chat-input').focus();
+};
+
+$('#chat-form').onsubmit = async event => {
+  event.preventDefault();
+  if (busy) return;
+  const text = $('#chat-input').value.trim();
+  if (!text) return;
+  if (!user || demo) {
+    chat = [{role:'notice', text:'Чтобы получить подсказку Zico, войди в учебный аккаунт.'}];
+    drawChat();
+    return;
+  }
+
+  const sender = user;
+  const activeRun = run;
+  const pageModule = location.hash.match(/^#module\/([^/]+)/)?.[1];
+  const module = location.hash === '#play' ? activeRun?.module : pageModule;
+  const history = chat.filter(message => message.role !== 'notice').slice(-8)
+    .map(({role, text}) => ({role, text}));
+
+  busy = true;
+  $('#chat-send').disabled = true;
+  chat = chat.filter(message => message.role !== 'notice').slice(-59);
+  chat.push({role:'user', text, at:new Date().toISOString()});
+  saveChat();
+  $('#chat-input').value = '';
+  drawChat();
+
+  try {
+    const answer = await api('chat', {text, history, module});
+    if (user !== sender) return;
+    const recommendation = answer.recommendation;
+    if (recommendation) {
+      recommendation.completed ||= localResults.some(
+        result => result.module === recommendation.module && result.complete
+      );
+    }
+    chat = chat.slice(-59);
+    chat.push({role:'assistant', text:answer.text, recommendation, at:new Date().toISOString()});
+    saveChat();
+    savedChatCount++;
+    if (run && run === activeRun) run.helpCount++;
+  } catch (error) {
+    if (user === sender) chat.push({role:'notice', text:error.message});
+  } finally {
+    busy = false;
+    $('#chat-send').disabled = false;
+    drawChat();
+  }
+};
 $('#zico-open').onclick=()=>$('#zico-open').getAttribute('aria-expanded')==='true'?closeChat():openChat();$('#zico-close').onclick=closeChat;document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#zico-panel').classList.contains('hidden'))closeChat()});
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-action],[data-nav]');if(!b)return;const action=b.dataset.action||b.dataset.nav;if(['home','modules','progress','about','original','glossary','login'].includes(action)){navigate(action);return}if(action.startsWith('section:')){const [,id,target]=action.split(':');navigate('module/'+id+'/'+({'example':'examples','module-practice':'practice','module-test':'test'}[target]||'theory'));return}if(action.startsWith('tab:')){const [,id,tab]=action.split(':');navigate('module/'+id+'/'+tab);return}if(action.startsWith('module:')){navigate('module/'+action.split(':')[1]);return}if(action.startsWith('anchor:')){document.getElementById(action.split(':')[1])?.scrollIntoView({behavior:'smooth'});return}if(action==='course-map'){document.getElementById('course-map')?.scrollIntoView({behavior:'smooth'});return}if(['examples','practice-hub','test-hub'].includes(action)){navigate(action);return}if(action.startsWith('start:')){if(run&&!confirm('Начать заново?'))return;start(action.split(':')[1]);return}if(action==='demo'){demo=true;user={id:'demo',username:'Просмотр'};enterCourse()}else if(action==='zico')openChat();else if(action.startsWith('route:')){run.route=action.split(':')[1];run.step=1;run.phase=run.route==='support'?'material':'question';run.order=shuffle(getCase(run.caseIds[1]).options);render()}else if(action==='material-next'){run.phase='question';render()}else if(action==='retry'){if(run.answers.length>=60){toast('Слишком много повторных попыток. Начни новый разбор.');return}run.phase='question';run.order=shuffle(getCase(run.caseIds[run.step]).options);render()}else if(action==='next'){if(run.step===0){run.phase='route';render()}else if(run.step===run.caseIds.length-1){await finish()}else{run.step++;run.phase='question';run.order=shuffle(getCase(run.caseIds[run.step]).options);render()}}else if(action==='export')download('Zico-results.json',{user:demo?'demo':user.username,results:localResults,chatCalls:savedChatCount});else if(action.startsWith('detail:'))detail(Number(action.split(':')[1]));else if(action==='sync'){try{for(const pending of localResults.filter(r=>!r.synced)){const saved=await api('results',{result:pending});Object.assign(pending,saved.result,{synced:true});}const d=await api('results');const map=new Map(localResults.map(r=>[r.id,r]));for(const r of d.results)map.set(r.id,{...r,synced:true});localResults=[...map.values()].sort((a,b)=>b.finishedAt.localeCompare(a.finishedAt));write(resultKey(),localResults);render()}catch(err){toast(err.message)}}else if(action==='admin'){try{const d=await api('admin');$('#admin-stats').textContent=`Аккаунтов ${d.users}. Завершённых прохождений ${d.runs}. Обращений к ИИ ${d.chatCalls}. Уникальных участников с результатами ${d.activeUsers}.`}catch(err){$('#admin-stats').textContent=err.message}}});
-document.querySelector('.brand').onclick=e=>{e.preventDefault();navigate('home')};$('#account').onclick=async()=>{if(!user){navigate('login');return}if(!confirm('Выйти из аккаунта?'))return;if(!demo){try{await api('auth',{action:'logout'})}catch{toast('Не удалось выйти на сервере. Попробуй ещё раз.');return}}user=null;run=null;chat=[];closeChat();demo=false;render()};
+document.querySelector('.brand').onclick=e=>{e.preventDefault();navigate('home')};$('#account').onclick=async()=>{if(!user){navigate('login');return}if(!confirm('Выйти из аккаунта?'))return;if(!demo){try{await api('auth',{action:'logout'})}catch{toast('Не удалось выйти на сервере. Попробуй ещё раз.');return}}user=null;run=null;chat=[];$('#chat-input').value='';drawChat();closeChat();demo=false;render()};
 window.addEventListener('hashchange',()=>{if(run&&location.hash!=='#play'){if(confirm('Покинуть незавершённый разбор?'))run=null;else{location.hash='play';return}}render()});
 let lastOriginal='';window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==document.querySelector('iframe')?.contentWindow||e.data?.type!=='delivery-result')return;const payload=e.data.payload;const sig=JSON.stringify(payload.final);if(sig===lastOriginal)return;lastOriginal=sig;write('zico.original.'+(user?.id||'guest'),payload);toast('Ответ исходного модуля сохранён в этом браузере. SVG можно скачать внутри модуля.');});
 async function init(){try{const d=await api('auth');cloudReady=d.ready;user=d.user||null;if(user)loadLocal()}catch{}render()}init();

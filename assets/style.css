@@ -30,3 +30,9 @@ main{view-transition-name:course-page}::view-transition-old(root),::view-transit
 @media(max-width:650px){.zico-panel{right:82px;bottom:16px;width:350px;max-width:calc(100vw - 94px);height:420px;max-height:calc(100dvh - 32px)}}
 @media(max-width:380px){.zico-launch{right:10px;width:46px;height:46px}.zico-panel{right:64px;max-width:calc(100vw - 72px)}.zico-panel .chat-log{padding:8px}.chat-message{padding:9px;font-size:12px}}
 @media(prefers-reduced-motion:reduce){#chat-send{transition:none}}
+
+/* Module suggestions and chat history controls */
+.chat-module-link{display:block;margin-top:8px;border:1px solid #bad3c3;border-radius:12px;padding:6px 9px;background:white;color:#235b3c;font:inherit;font-weight:600;text-align:left}
+.chat-module-link:hover{background:#e7f4eb}
+.chat-clear{display:block;margin:4px auto 0;border:0;background:transparent;color:var(--muted);font:inherit;font-size:11px;padding:2px 6px;text-decoration:underline}
+.chat-clear:disabled{opacity:.45}
