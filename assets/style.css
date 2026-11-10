@@ -73,3 +73,13 @@ main{view-transition-name:course-page}::view-transition-old(root),::view-transit
 .hero-message-controls .hero-next::after{display:none}
 .hero-message-controls .hero-next:hover{background:#fff}
 .course-art .hero-message-stage .mail-card{transition:transform .24s ease}
+
+.case-context{font-size:12px;line-height:1.55;color:#4a6356;margin:9px 4px 0}
+.case-context strong{display:block;font-size:11px;font-weight:700;color:#2c6749;margin-bottom:2px}
+.case-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
+.case-actions .button{margin:0}
+.hero-message-stage{animation:hero-drift 4.8s ease-in-out infinite}
+.course-art .hero-message-stage .mail-card.is-current{animation:none}
+.hero-message-stage:hover{animation-play-state:paused}
+@media(prefers-reduced-motion:reduce){.hero-message-stage{animation:none}}
+@media(max-width:400px){.case-actions .button{font-size:12px;padding-inline:9px}}
