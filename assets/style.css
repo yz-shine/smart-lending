@@ -36,3 +36,29 @@ main{view-transition-name:course-page}::view-transition-old(root),::view-transit
 .chat-module-link:hover{background:#e7f4eb}
 .chat-clear{display:block;margin:4px auto 0;border:0;background:transparent;color:var(--muted);font:inherit;font-size:11px;padding:2px 6px;text-decoration:underline}
 .chat-clear:disabled{opacity:.45}
+
+/* Profile and confirmation */
+.account-wrap{position:relative;flex:0 0 auto}
+#account.account-avatar{display:grid;place-items:center;width:44px;height:44px;min-width:44px;padding:0;border:1px solid #b8d8c4;border-radius:50%;background:#dff3e7;color:#1c5438;font-size:17px;font-weight:700}
+.account-menu{position:absolute;right:0;top:calc(100% + 9px);z-index:45;width:max-content;min-width:160px;max-width:min(230px,85vw);padding:14px;border:1px solid #d5e2d9;border-radius:17px;background:#fff;box-shadow:0 10px 35px #102f2020}
+.account-menu strong{display:block;overflow-wrap:anywhere;padding:2px 0 6px}
+.account-menu button{display:block;text-align:left}
+.logout-dialog{width:min(440px,calc(100% - 32px));border:1px solid #d5e2d9;border-radius:24px;padding:26px;background:#fff;color:#133427;box-shadow:0 20px 70px #12352944}
+.logout-dialog::backdrop{background:#091e16a8}
+.logout-dialog h2{margin:8px 0 18px;font-size:24px;line-height:1.25}
+.logout-dialog .button-row{justify-content:flex-end}
+.module-footer-actions{display:flex;justify-content:flex-end;margin-top:18px}
+#module-panel{animation:none}
+.feedback:focus{outline:none}
+
+/* Rotating educational examples */
+.hero-message-stage{display:grid;width:100%}
+.course-art .hero-message-stage .mail-card{grid-area:1 / 1;opacity:0;visibility:hidden;transition:opacity .36s ease,transform .24s ease,visibility .36s;transform:rotate(-2deg)}
+.course-art .hero-message-stage .mail-card.is-current{opacity:1;visibility:visible;animation:hero-drift 4.8s ease-in-out infinite}
+.course-art:hover .hero-message-stage .mail-card.is-current,.course-art:focus-within .hero-message-stage .mail-card.is-current{animation-play-state:paused;transform:rotate(0deg) scale(1.035)}
+.hero-message-controls{display:flex;justify-content:center;gap:7px;position:relative;z-index:2}
+.hero-message-controls button{width:24px;height:24px;border:0;border-radius:50%;padding:0;background:transparent;display:grid;place-items:center}
+.hero-message-controls button::after{content:'';width:7px;height:7px;border-radius:50%;background:#d4f3df}
+.hero-message-controls button[aria-pressed=true]::after{background:#123c26;width:10px;height:10px}
+@keyframes hero-drift{0%,100%{translate:0 0}50%{translate:0 -7px}}
+@media(prefers-reduced-motion:reduce){.course-art .hero-message-stage .mail-card{transition:none!important;animation:none!important}}
