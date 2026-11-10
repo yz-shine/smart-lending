@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#020f06">
+<title>Распознавание фишинговых писем о доставке</title>
+<link rel="stylesheet" href="../assets/delivery.css">
+</head>
+<body>
+<div class="wrap">
+<header class="header">
+<a href="#home" class="brand" aria-label="Начало">✉</a>
+<nav class="tabs" aria-label="Этапы обучения">
+<button data-page="home" class="active">Обзор</button><button data-page="diagnostic">Входная задача</button><button data-page="learn">Обучение</button><button data-page="practice">Итоговая задача</button><button data-page="result">Результат</button>
+</nav>
+<button class="help" id="help-open">Памятка ↗</button>
+</header>
+<div class="progress" role="progressbar" aria-label="Прогресс обучения" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0"><span id="progress-fill"></span></div>
+<main id="main" tabindex="-1"></main><div id="toast" class="toast" role="status" aria-live="polite"></div>
+<footer class="footer">Задание 2 · Абдурахмонова Ю. Ф. · Учебные задания</footer>
+</div>
+<dialog id="help-dialog"><div class="eyebrow">Короткая памятка</div><h2>Как проверить письмо</h2><ol><li>Не переходите по ссылке из неожиданного письма и не вводите на ней данные карты, CVC или код из SMS.</li><li>Откройте знакомое приложение магазина или перевозчика самостоятельно.</li><li>Проверьте заказ и используйте контакты из приложения или заказа.</li><li>Срочность, логотип, сумма и HTTPS сами по себе не подтверждают подлинность письма.</li></ol><button class="button secondary" data-close-help>Закрыть</button></dialog>
+<script src="../assets/delivery.js"></script>
+</body></html>
