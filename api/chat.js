@@ -208,9 +208,24 @@ export default async function handler(req, res) {
       [user.id, context?.id || null]
     );
 
-    json(res, 200, {
-      text: resolveReply(decision)
-    });
+    const learningModule = ['HINT', 'READY_ANSWER', 'INSUFFICIENT'].includes(decision.category)
+      && decision.hint !== 'privacy' && typeof decision.module === 'string'
+      ? getModule(decision.module)
+      : null;
+
+    let recommendation;
+    if (learningModule) {
+      const progress = await sql(
+        "SELECT 1 FROM zico_results WHERE user_id=$1 AND module=$2 AND payload->>'complete'='true' LIMIT 1",
+        [user.id, learningModule.id]
+      );
+      recommendation = {
+        module: learningModule.id,
+        completed: progress.rows.length > 0
+      };
+    }
+
+    json(res, 200, { text: resolveReply(decision), recommendation });
   } catch (error) {
     fail(res, error);
   }
