@@ -62,3 +62,14 @@ main{view-transition-name:course-page}::view-transition-old(root),::view-transit
 .hero-message-controls button[aria-pressed=true]::after{background:#123c26;width:10px;height:10px}
 @keyframes hero-drift{0%,100%{translate:0 0}50%{translate:0 -7px}}
 @media(prefers-reduced-motion:reduce){.course-art .hero-message-stage .mail-card{transition:none!important;animation:none!important}}
+
+/* In-place glossary help */
+.term-word{border-bottom:1px dotted #67a184}
+.term-help{display:inline-grid;place-items:center;vertical-align:baseline;margin-left:3px;width:17px;height:17px;padding:0;border:1px solid #9ac3aa;border-radius:50%;background:#eaf5ee;color:#25583d;font:700 11px/1 system-ui,sans-serif;cursor:help}
+.term-help:hover,.term-help:focus-visible{background:#164832;color:#fff;border-color:#164832}
+.term-tip{position:fixed;z-index:90;width:max-content;max-width:min(300px,calc(100vw - 24px));padding:12px 15px;border-radius:13px;background:#10271d;color:#f7fff9;font-size:13px;line-height:1.55;box-shadow:0 9px 25px #0a261d42;pointer-events:none}
+.term-tip strong{display:block;color:#a6e3bd;margin-bottom:4px}
+.hero-message-controls .hero-next{width:30px;height:24px;border:1px solid #ffffff70;border-radius:999px;color:#103526;font-weight:700;background:#e5f6ea;margin-left:3px}
+.hero-message-controls .hero-next::after{display:none}
+.hero-message-controls .hero-next:hover{background:#fff}
+.course-art .hero-message-stage .mail-card{transition:transform .24s ease}

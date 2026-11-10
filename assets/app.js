@@ -52,6 +52,7 @@ function renderNow() {
   const changedPage = renderedPage !== page;
   renderedPage = page;
   stopHero();
+  hideTermTip();
   main.getAnimations().forEach(animation => animation.cancel());
   main.dataset.page = page.startsWith('module/') ? 'module' : page;
   renderAccount();
@@ -68,6 +69,7 @@ function renderNow() {
   }[page] || home)();
 
   if (page === 'home') startHero();
+  if (page === 'progress' && changedPage && user && !demo) syncResults();
   window.scrollTo({top:0, behavior:'instant'});
   main.focus({preventScroll:true});
   if (changedPage && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -86,13 +88,26 @@ const heroExamples = [
 function startHero() {
   const stage = $('.hero-message-stage');
   const cards = [...stage.querySelectorAll('.mail-card')];
-  const dots = [...$('.hero-message-controls').querySelectorAll('button')];
+  const dots = [...$('.hero-message-controls').querySelectorAll('[aria-pressed]')];
   let active = 0;
   let timer;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const paused = () => $('.course-art')?.matches(':hover, :focus-within');
   function show(index) {
+    const previous = cards[active];
     active = index;
+    cards.forEach(card => card.getAnimations().filter(a => a.id === 'hero-slide').forEach(a => a.cancel()));
+    if (previous !== cards[index] && !reducedMotion.matches) {
+      const duration = {duration:420, easing:'cubic-bezier(.25,.7,.3,1)', id:'hero-slide'};
+      previous.animate([
+        {transform:'translateX(0) rotate(-2deg)', opacity:1, visibility:'visible'},
+        {transform:'translateX(35px) rotate(1deg)', opacity:0, visibility:'visible'}
+      ], duration);
+      cards[index].animate([
+        {transform:'translateX(-35px) rotate(-4deg)', opacity:0},
+        {transform:'translateX(0) rotate(-2deg)', opacity:1}
+      ], duration);
+    }
     cards.forEach((card, i) => {
       card.classList.toggle('is-current', i === index);
       card.setAttribute('aria-hidden', String(i !== index));
@@ -106,6 +121,7 @@ function startHero() {
     }, 6200);
   }
   dots.forEach((button, index) => button.onclick = () => { show(index); restart(); });
+  $('.hero-next').onclick = () => { show((active + 1) % cards.length); restart(); };
   show(0);
   restart();
   reducedMotion.addEventListener('change', restart);
@@ -115,7 +131,7 @@ function startHero() {
   };
 }
 
-function home(){main.innerHTML=`<section class="hero course-hero"><div><span class="eyebrow">Короткий курс цифровой безопасности</span><h1>Распознавание<br><em>фишинговых сообщений</em></h1><p class="hero-motto">Прежде чем <span>доверять, <em>проверь.</em></span></p><p class="lead">Сообщение может выглядеть знакомым и убедительным. На этом курсе ты научишься замечать опасные просьбы и проверять их через независимый источник.</p><div class="meta"><span class="chip">5 модулей</span><span class="chip">Примеры и практика</span><span class="chip">В своём темпе</span></div><div class="button-row">${btn('Посмотреть карту курса','course-map')}${btn('Перейти к модулям','modules','secondary')}</div></div><div class="mail-art course-art"><span class="art-label">Входящее сообщение</span><div class="hero-message-stage">${heroExamples.map(([icon, source, title, body], i) => `<article class="mail-card${i===0?' is-current':''}" aria-hidden="${i!==0}"><div class="mail-head"><span class="avatar" aria-hidden="true">${icon}</span><div>${source}<small>Учебный пример</small></div></div><h2>«${title}»</h2><p>${body}</p><div class="message-footer"><span class="message-dot"></span>Что в этой просьбе стоит проверить?</div></article>`).join('')}</div><div class="hero-message-controls" role="group" aria-label="Примеры сообщений">${heroExamples.map(([, source], i) => `<button type="button" aria-label="${source}" aria-pressed="${i===0}"></button>`).join('')}</div><div class="art-question"><b>Что проверить первым?</b><span>Отправителя, требование или ссылку?</span></div></div></section>
+function home(){main.innerHTML=`<section class="hero course-hero"><div><span class="eyebrow">Короткий курс цифровой безопасности</span><h1>Распознавание<br><em>фишинговых сообщений</em></h1><p class="hero-motto">Прежде чем <span>доверять, <em>проверь.</em></span></p><p class="lead">Сообщение может выглядеть знакомым и убедительным. На этом курсе ты научишься замечать опасные просьбы и проверять их через независимый источник.</p><div class="meta"><span class="chip">5 модулей</span><span class="chip">Примеры и практика</span><span class="chip">В своём темпе</span></div><div class="button-row">${btn('Посмотреть карту курса','course-map')}${btn('Перейти к модулям','modules','secondary')}</div></div><div class="mail-art course-art"><span class="art-label">Входящее сообщение</span><div class="hero-message-stage">${heroExamples.map(([icon, source, title, body], i) => `<article class="mail-card${i===0?' is-current':''}" aria-hidden="${i!==0}"><div class="mail-head"><span class="avatar" aria-hidden="true">${icon}</span><div>${source}<small>Учебный пример</small></div></div><h2>«${title}»</h2><p>${body}</p><div class="message-footer"><span class="message-dot"></span>Что в этой просьбе стоит проверить?</div></article>`).join('')}</div><div class="hero-message-controls" role="group" aria-label="Примеры сообщений">${heroExamples.map(([, source], i) => `<button type="button" aria-label="${source}" aria-pressed="${i===0}"></button>`).join('')}<button type="button" class="hero-next" aria-label="Следующее сообщение">→</button></div><div class="art-question"><b>Что проверить первым?</b><span>Отправителя, требование или ссылку?</span></div></div></section>
 <section class="course-section" id="intro">${head('Введение','О чём этот курс','Фишинговое сообщение пытается убедить человека раскрыть данные, предоставить доступ или выполнить опасное действие.')}<div class="intro-copy"><p>Такие сообщения встречаются в мессенджерах, электронной почте, SMS и чатах объявлений. Они могут ссылаться на настоящий заказ, приходить со знакомого аккаунта или обещать помощь.</p><p>Курс подойдёт тем, кто хочет увереннее разбирать повседневные сообщения. Ты будешь принимать решения в роли владельца аккаунта, покупателя, клиента банка и участника учебной группы.</p></div></section>
 <section class="course-section" id="goals">${head('Цели','Что ты сможешь после курса','Результат проверяется на новых учебных ситуациях, а не по запоминанию названий.')}<div class="goals-grid">${['Находить подозрительную просьбу, даже если имя отправителя знакомо.','Различать опасное требование и обычное уведомление.','Выбирать способ проверки, который не зависит от сообщения.','Объяснять решение конкретными деталями, а не только общим впечатлением.'].map((t,i)=>`<article class="goal-item"><span>0${i+1}</span><p>${t}</p></article>`).join('')}</div></section>
 <section class="course-section" id="course-map">${head('Карта курса','Из чего состоит обучение','Можно сначала познакомиться с материалами, затем войти и перейти к своим заданиям.')}<div class="course-map-grid">${[['Введение','О чём курс и зачем он тебе','anchor:intro','01'],['Цели','Что получится делать после курса','anchor:goals','02'],['Карта курса','Порядок работы и навигация','about','03'],['Модули','Теория небольшими разделами','modules','04'],['Примеры','Разбор сообщений из разных ситуаций','examples','05'],['Практика','Твоя роль, действие и объяснение','practice-hub','06'],['Тесты','Проверка с обратной связью','test-hub','07'],['Глоссарий','Понятные объяснения терминов','glossary','08']].map(([title,desc,action,n])=>`<button class="map-card" data-action="${action}"><div class="map-card-title"><span class="map-number">${n}</span><h3>${title}</h3></div><p>${desc}</p></button>`).join('')}</div></section>
@@ -149,9 +165,35 @@ feedback.focus({preventScroll:true});
 window.scrollTo({top:scrollTop, behavior:'instant'});}}
 async function finish(){const result={...run,complete:true,finishedAt:new Date().toISOString(),questionCount:run.caseIds.length,firstScore:run.caseIds.filter(id=>run.answers.find(a=>a.caseId===id)?.correct).length,finalCorrect:run.answers.filter(a=>a.caseId===run.caseIds.at(-1)).at(-1)?.correct,chatCount:run.helpCount};delete result.order;localResults.unshift(result);write(resultKey(),localResults);run=null;if(!demo){try{const saved=await api('results',{result});Object.assign(result,saved.result,{synced:true});write(resultKey(),localResults)}catch{toast('Результат сохранён в браузере. Отправка на сервер пока не удалась.')}}location.hash='progress';render()}
 
-function progress(){const completed=localResults.filter(x=>x.complete);main.innerHTML=head('Личный кабинет','Мои результаты','Здесь разделены первые ответы, повторные попытки и обращения за помощью. Письменные объяснения требуют проверки преподавателем.')+`<div class="stats-grid"><section class="panel"><strong>${new Set(completed.map(x=>x.module)).size}</strong><span class="muted">модулей пройдено</span></section><section class="panel"><strong>${completed.length}</strong><span class="muted">завершённых прохождений</span></section><section class="panel"><strong>${completed.reduce((n,r)=>n+(r.chatCount||0),0)}</strong><span class="muted">обращений к помощнику в прохождениях</span></section></div><div class="button-row">${!demo?btn('Обновить с сервера','sync','secondary'):''}</div><section class="panel table-scroll" style="margin-top:20px"><table><thead><tr><th>Модуль</th><th>Первые ответы</th><th>Повторные попытки</th><th>Сохранение</th><th>Подробности</th><th>Скачать</th></tr></thead><tbody>${completed.map((r,i)=>`<tr><td>${esc(moduleTitle(r.module))}<br><small>${new Date(r.finishedAt).toLocaleString('ru-RU')}</small></td><td>${r.firstScore??'—'} / ${r.questionCount||r.caseIds?.length||3}</td><td>${Math.max(0,(r.answers?.length||0)-(r.questionCount||r.caseIds?.length||3))}</td><td>${r.synced?'Сервер и браузер':'Этот браузер'}</td><td><button class="link-button" data-action="detail:${i}">Ответы</button></td><td><button class="link-button" data-action="png:${i}" aria-label="Скачать PNG: ${esc(moduleTitle(r.module))}">PNG</button></td></tr>`).join('')||'<tr><td colspan="6">Пока нет завершённых разборов.</td></tr>'}</tbody></table></section><div id="result-detail"></div>`}
+function progress(){const completed=localResults.filter(x=>x.complete);main.innerHTML=head('Личный кабинет','Мои результаты','Здесь разделены первые ответы, повторные попытки и обращения за помощью. Письменные объяснения требуют проверки преподавателем.')+`<div class="stats-grid"><section class="panel"><strong>${new Set(completed.map(x=>x.module)).size}</strong><span class="muted">модулей пройдено</span></section><section class="panel"><strong>${completed.length}</strong><span class="muted">завершённых прохождений</span></section><section class="panel"><strong>${completed.reduce((n,r)=>n+(r.chatCount||0),0)}</strong><span class="muted">обращений к помощнику в прохождениях</span></section></div><section class="panel table-scroll" style="margin-top:20px"><table><thead><tr><th>Модуль</th><th>Первые ответы</th><th>Повторные попытки</th><th>Сохранение</th><th>Подробности</th><th>Скачать</th></tr></thead><tbody>${completed.map((r,i)=>`<tr><td>${esc(moduleTitle(r.module))}<br><small>${new Date(r.finishedAt).toLocaleString('ru-RU')}</small></td><td>${r.firstScore??'—'} / ${r.questionCount||r.caseIds?.length||3}</td><td>${Math.max(0,(r.answers?.length||0)-(r.questionCount||r.caseIds?.length||3))}</td><td>${r.synced?'Сервер и браузер':'Этот браузер'}</td><td><button class="link-button" data-action="detail:${i}">Ответы</button></td><td><button class="link-button" data-action="png:${i}" aria-label="Скачать PNG: ${esc(moduleTitle(r.module))}">PNG</button></td></tr>`).join('')||'<tr><td colspan="6">Пока нет завершённых разборов.</td></tr>'}</tbody></table></section><div id="result-detail"></div>`}
+async function syncResults() {
+  const account = user;
+  const key = resultKey();
+  for (const result of localResults.filter(item => !item.synced)) {
+    try {
+      const saved = await api('results', {result});
+      if (user !== account) return;
+      Object.assign(result, saved.result, {synced:true});
+      write(key, localResults);
+    } catch {
+      if (user !== account) return;
+    }
+  }
+  try {
+    const remote = await api('results');
+    if (user !== account) return;
+    const merged = new Map(localResults.map(result => [result.id, result]));
+    for (const result of remote.results) merged.set(result.id, {...result, synced:true});
+    localResults = [...merged.values()].sort((a,b) => b.finishedAt.localeCompare(a.finishedAt));
+    write(key, localResults);
+    if (location.hash === '#progress' && !$('#result-detail')?.children.length) progress();
+  } catch {
+    if (user === account && location.hash === '#progress') toast('Показаны результаты, сохранённые в этом браузере.');
+  }
+}
+
 function detail(i){const r=localResults.filter(x=>x.complete)[i];if(!r)return;$('#result-detail').innerHTML=`<section class="panel" style="margin-top:20px"><h3>${esc(moduleTitle(r.module))}</h3><p class="small muted">Маршрут - ${r.route==='support'?'с поддержкой':'самостоятельный'}</p>${(r.answers||[]).map(a=>`<div class="answer-review"><b>${esc(getCase(a.caseId)?.question||'Исходный модуль')}</b><p>${esc(getCase(a.caseId)?.options.find(o=>o[0]===a.choice)?.[1]||a.choice)}</p><p>${esc(a.reason)}</p>${a.evidence?.length?`<p class="small muted">Отмечены фрагменты: ${a.evidence.map(id=>esc(getCase(a.caseId)?.evidence?.find(e=>e[0]===id)?.[1]||id)).join('; ')}</p>`:''}<small>Попытка ${a.attempt} · ${a.correct?'действие верное':'действие требует пересмотра'}</small></div>`).join('')}<p class="small muted">Объяснения автоматически не оценивались.</p></section>`;$('#result-detail').scrollIntoView({behavior:'smooth'})}
-function about(){main.innerHTML=head('Порядок работы','Не торопись выбирать','Учебный модуль помогает разбирать требования сообщения, а не угадывать по оформлению.')+`<div class="steps"><article class="step"><b>01 · Прими роль</b><span>Ты покупатель, владелец аккаунта или участник учебной группы. Учитывай, что уже известно в ситуации.</span></article><article class="step"><b>02 · Объясни действие</b><span>Назови основание своего решения. Адреса .example вымышлены, переходить по ним не нужно.</span></article><article class="step"><b>03 · Проверь и повтори</b><span>Первые ответы сохраняются отдельно. Повторная попытка помогает учиться, но не стирает первую ошибку.</span></article></div><section class="panel"><h3>Помощник Zico</h3><p>Круглая кнопка в правом нижнем углу открывает окно поверх страницы. Помощник должен уточнять затруднение и давать подсказку, не выдавая решение сразу.</p><p>Используй подсказку, чтобы ещё раз обдумать своё решение. Не отправляй настоящие пароли, коды, платёжные данные и сведения о других людях. Текст обращения передаётся внешнему сервису ИИ.</p><h3>Что сохраняется</h3><p>В режиме просмотра результаты остаются в этом браузере. После подключения базы данных аккаунт сохраняет выбранный маршрут, ответы, повторные попытки и число обращений к помощнику. Последние 60 сообщений Zico сохраняются в этом браузере отдельно для каждого аккаунта.</p><p>Проект не определяет реальную безопасность сайта и не проверяет адреса автоматически. Ситуации учебные.</p></section>`}
+function about(){main.innerHTML=head('Помощь','Как проходить курс','Учебный модуль помогает разбирать требования сообщения, а не угадывать по оформлению.')+`<div class="steps"><article class="step"><b>01 · Прими роль</b><span>Ты покупатель, владелец аккаунта или участник учебной группы. Учитывай, что уже известно в ситуации.</span></article><article class="step"><b>02 · Объясни действие</b><span>Назови основание своего решения. Адреса .example вымышлены, переходить по ним не нужно.</span></article><article class="step"><b>03 · Проверь и повтори</b><span>Первые ответы сохраняются отдельно. Повторная попытка помогает учиться, но не стирает первую ошибку.</span></article></div><section class="panel"><h3>Помощник Zico</h3><p>Круглая кнопка в правом нижнем углу открывает окно поверх страницы. Помощник должен уточнять затруднение и давать подсказку, не выдавая решение сразу.</p><p>Используй подсказку, чтобы ещё раз обдумать своё решение. Не отправляй настоящие пароли, коды, платёжные данные и сведения о других людях. Текст обращения передаётся внешнему сервису ИИ.</p><h3>Что сохраняется</h3><p>В режиме просмотра результаты остаются в этом браузере. После подключения базы данных аккаунт сохраняет выбранный маршрут, ответы, повторные попытки и число обращений к помощнику. В профиле открой «Мои результаты». Там видны первые ответы, повторные попытки и обращения к Zico. Нажми PNG в нужной строке, чтобы сохранить отчёт.</p><h3>История переписки с Zico</h3><p>Войди в свой аккаунт и открой помощника. Последние 60 сообщений доступны в том же браузере после обновления страницы. Кнопка «Очистить чат» удаляет эту переписку из браузера.</p>${btn('Открыть чат Zico','zico','secondary')}<p>Проект не определяет реальную безопасность сайта и не проверяет адреса автоматически. Ситуации учебные.</p></section>`}
 function original(){main.innerHTML=head('Дополнительный тренажёр','Доставка · разбор писем','Сохранены материалы, два маршрута, подсказки и скачивание SVG. Этот модуль учитывается отдельно от новых ролевых разборов.')+`<iframe title="Исходный учебный модуль о доставке" class="original-frame" src="modules/Фишинговые сообщения СМАРТ.html"></iframe>`}
 function sectionHub(label,title,target){main.innerHTML=head(label,title,'Выбери тему, чтобы перейти к нужной части модуля.')+`<div class="catalog">${modules.map(m=>`<article class="panel module-card"><span class="eyebrow">${m.level}</span><h3>${m.title}</h3><p class="muted">${m.summary}</p>${btn('Открыть раздел','section:'+m.id+':'+target)}</article>`).join('')}</div>`}
 function modulePage(id,tab='theory'){const m=getModule(id),lesson=lessons[id];if(!m||!lesson){catalog();return}const tabs=[['theory','Теория'],['examples','Примеры'],['practice','Практика'],['test','Тест']];if(!tabs.some(t=>t[0]===tab))tab='theory';currentModuleId=id;currentModuleTab=tab;main.innerHTML=head('Учебный модуль',m.title,m.summary)+`<div class="module-subnav module-tabs" role="tablist" aria-label="Разделы модуля">${tabs.map(([key,label])=>`<button role="tab" id="tab-${key}" aria-selected="${key===tab}" aria-controls="module-panel" tabindex="${key===tab?'0':'-1'}" data-action="tab:${id}:${key}">${label}</button>`).join('')}</div><section id="module-panel" role="tabpanel" aria-labelledby="tab-${tab}" tabindex="-1"></section>`;
@@ -159,6 +201,7 @@ const panel=$('#module-panel');if(tab==='theory'){panel.innerHTML=`<div class="m
 else if(tab==='examples'){panel.innerHTML=`<div class="module-tab-heading"><div><span class="eyebrow">Примеры с объяснениями</span><h3>Сравни просьбы и способы проверки</h3></div>${btn('К практике','tab:'+id+':practice','secondary')}</div><div class="example-list">${lesson.exampleIds.map((caseId,i)=>{const c=getCase(caseId);return `<article class="example-card"><span class="eyebrow">Пример ${i+1}</span><div class="grid"><section>${messageMarkup({...c,evidence:undefined},m)}</section><section class="panel"><h3>Разбор</h3><p>${esc(c.explanation)}</p><p class="small muted">${esc(c.hint)}</p></section></div></article>`}).join('')}</div>`}
 else if(tab==='practice'){panel.innerHTML=`<section class="panel practice-intro"><div class="module-tab-heading"><div><span class="eyebrow">Практическое прохождение</span><h3>Попробуй в своей роли</h3></div>${btn(user?'Начать практику':'Войти и перейти к практике','start:'+id)}</div><p>Твоя роль - ${m.role.toLowerCase()}. Пройди шесть ситуаций, выбери действие и объясни решение.</p><div class="steps"><article class="step"><b>1 · Входная ситуация</b><span>Начни со своего решения. Затем выбери маршрут с поддержкой или самостоятельный.</span></article><article class="step"><b>2 · Три тренировки</b><span>Сравнивай сообщения, отмечай детали и пробуй снова после подсказки.</span></article><article class="step"><b>3 · Две итоговые задачи</b><span>Примени правило к другим случаям. Первые ответы и объяснения сохраняются.</span></article></div>${id==='telegram'?'<p class="note">В модуле сохранены исходное уведомление об изменении двухэтапной проверки, сравнение сообщений А и Б и новая ситуация с ограничением в 15 минут.</p>':id==='delivery'?'<p class="note">В модуле сохранены письмо о доплате, сравнение двух писем и итоговый возврат платы. Подозрительные фрагменты отмечаются прямо в тексте.</p>':''}</section>${id==='delivery'?`<div class="original-banner"><div><b>Прежний тренажёр доставки</b><p>Отдельная версия из второй работы с входной проверкой четырёх уведомлений и сохранением SVG.</p></div>${btn('Открыть тренажёр','original','secondary')}</div>`:''}`}
 else{const completed=localResults.find(r=>r.module===id&&r.complete);panel.innerHTML=`<section class="panel practice-intro"><div class="module-tab-heading"><div><span class="eyebrow">Итоговая проверка</span><h3>Проверь перенос правила</h3></div>${btn(user?'Начать прохождение':'Войти и перейти к практике','start:'+id)}</div><p>Две итоговые ситуации находятся в конце шестишагового прохождения. В них нужно самостоятельно выбрать действие, указать существенные детали и объяснить решение. Подсказка с разбором появляется после ответа.</p><p>Автоматически проверяются действие и отметки в сообщении, если они предусмотрены. Текстовое объяснение сохраняется для преподавателя и не получает автоматический балл.</p>${completed?`<div class="note">У тебя уже есть завершённое прохождение. Результат первого выбора ${completed.firstScore} из ${completed.questionCount||completed.caseIds?.length||3}.</div><div class="button-row">${btn('Открыть мои результаты','progress','secondary')}</div>`:'<p class="note">Сначала пройди входную ситуацию и тренировку. Отдельно пропустить их и получить итоговый результат нельзя.</p>'}</section>`}
+if (tab === 'theory' || tab === 'examples') addTermTips(panel);
 const footer = document.createElement('div');
 footer.className = 'module-footer-actions';
 const action = panel.querySelector('.module-tab-heading > button');
@@ -168,11 +211,114 @@ if (action) {
 }
 const buttons=[...document.querySelectorAll('.module-tabs [role=tab]')];buttons.forEach((b,i)=>b.onkeydown=e=>{if(['ArrowRight','ArrowLeft','Home','End'].includes(e.key)){e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;const key=tabs[next][0];navigate('module/'+id+'/'+key);requestAnimationFrame(()=>document.getElementById('tab-'+key)?.focus({preventScroll:true}))}})}
 
-function glossary(){const words=[['Фишинг','Попытка обманом получить данные, доступ к аккаунту или заставить выполнить опасное действие.'],['Отправитель','Человек или сервис, от имени которого пришло сообщение. Отображаемое имя само по себе не подтверждает личность.'],['Независимая проверка','Проверка через знакомое приложение, ранее известный сайт или контакт, без использования адресов из подозрительного сообщения.'],['Домен','Часть адреса, указывающая на сайт. Похожее написание не подтверждает принадлежность организации.'],['HTTPS','Защищённое соединение с сайтом. Само по себе не гарантирует, что сайт принадлежит нужной организации.'],['Код подтверждения','Одноразовый код для определённого действия, например входа или перевода. Его назначение нужно читать в уведомлении.'],['CVC','Код карты, который нельзя передавать собеседнику или вводить на странице из непроверенного сообщения.'],['Социальная инженерия','Воздействие на человека через доверие, страх, спешку или обещание выгоды, чтобы он выполнил нужное действие.'],['QR-код','Изображение, которое может содержать адрес страницы. Его форма не подтверждает безопасность перехода.'],['Двухэтапная проверка','Дополнительный способ защиты входа. Она не делает безопасной передачу кодов или паролей другому человеку.']];main.innerHTML=head('Словарь курса','Глоссарий','Термины, которые встречаются в примерах и заданиях.')+`<div class="glossary-grid">${words.map(([word,text])=>`<article class="panel"><h3>${word}</h3><p>${text}</p></article>`).join('')}</div>`}
+const glossaryWords=[['Фишинг','Попытка обманом получить данные, доступ к аккаунту или заставить выполнить опасное действие.'],['Отправитель','Человек или сервис, от имени которого пришло сообщение. Отображаемое имя само по себе не подтверждает личность.'],['Независимая проверка','Проверка через знакомое приложение, ранее известный сайт или контакт, без использования адресов из подозрительного сообщения.'],['Домен','Часть адреса, указывающая на сайт. Похожее написание не подтверждает принадлежность организации.'],['HTTPS','Защищённое соединение с сайтом. Само по себе не гарантирует, что сайт принадлежит нужной организации.'],['Код подтверждения','Одноразовый код для определённого действия, например входа или перевода. Его назначение нужно читать в уведомлении.'],['CVC','Код карты, который нельзя передавать собеседнику или вводить на странице из непроверенного сообщения.'],['Социальная инженерия','Воздействие на человека через доверие, страх, спешку или обещание выгоды, чтобы он выполнил нужное действие.'],['QR-код','Изображение, которое может содержать адрес страницы. Его форма не подтверждает безопасность перехода.'],['Двухэтапная проверка','Дополнительный способ защиты входа. Она не делает безопасной передачу кодов или паролей другому человеку.']];
+function glossary(){main.innerHTML=head('Словарь курса','Глоссарий','Термины, которые встречаются в примерах и заданиях.')+`<div class="glossary-grid">${glossaryWords.map(([word,text])=>`<article class="panel"><h3>${word}</h3><p>${text}</p></article>`).join('')}</div>`}
+const glossaryPatterns = [
+  'фишинг[а-яё]*', 'отправител[а-яё]*', 'независим[а-яё]* проверк[а-яё]*',
+  'домен[а-яё]*', 'https', 'код[а-яё]* подтверждения', 'cvc',
+  'социальн[а-яё]* инженери[а-яё]*', 'qr[-‑–]код[а-яё]*',
+  'двухэтапн[а-яё]* (?:проверк|аутентификаци)[а-яё]*'
+];
+const termsPattern = new RegExp(
+  '(?<![\\p{L}\\p{N}])(?:' + glossaryPatterns.map(pattern => '(' + pattern + ')').join('|') +
+  ')(?![\\p{L}\\p{N}])', 'giu'
+);
+const termTip = document.createElement('div');
+termTip.id = 'term-tip';
+termTip.className = 'term-tip';
+termTip.setAttribute('role', 'tooltip');
+termTip.hidden = true;
+document.body.append(termTip);
+let currentTerm;
+
+function hideTermTip() {
+  currentTerm?.removeAttribute('aria-describedby');
+  currentTerm = null;
+  termTip.hidden = true;
+}
+
+function showTermTip(button, [term, definition]) {
+  hideTermTip();
+  currentTerm = button;
+  button.setAttribute('aria-describedby', termTip.id);
+  termTip.replaceChildren();
+  const title = document.createElement('strong');
+  title.textContent = term;
+  termTip.append(title, document.createTextNode(definition));
+  termTip.hidden = false;
+  const rect = button.getBoundingClientRect();
+  const left = Math.min(rect.left, document.documentElement.clientWidth - termTip.offsetWidth - 12);
+  const below = rect.bottom + 8;
+  const top = below + termTip.offsetHeight < window.innerHeight - 8
+    ? below : rect.top - termTip.offsetHeight - 8;
+  termTip.style.left = Math.max(12, left) + 'px';
+  termTip.style.top = Math.max(8, top) + 'px';
+}
+
+function addTermTips(panel) {
+  panel.querySelectorAll('p').forEach(paragraph => {
+    const nodes = [...paragraph.childNodes].filter(node => node.nodeType === Node.TEXT_NODE);
+    const seen = new Set();
+    for (const node of nodes) {
+      const fragment = document.createDocumentFragment();
+      let end = 0;
+      for (const match of node.textContent.matchAll(termsPattern)) {
+        const index = match.slice(1).findIndex(Boolean);
+        if (seen.has(index)) continue;
+        seen.add(index);
+        fragment.append(node.textContent.slice(end, match.index));
+        const word = document.createElement('span');
+        word.className = 'term-word';
+        word.append(match[0]);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'term-help';
+        button.textContent = '?';
+        button.setAttribute('aria-label', 'Что значит «' + glossaryWords[index][0] + '»');
+        const show = () => showTermTip(button, glossaryWords[index]);
+        button.onpointerenter = event => { if (event.pointerType === 'mouse') show(); };
+        button.onpointerleave = () => { if (currentTerm === button && document.activeElement !== button) hideTermTip(); };
+        button.onfocus = show;
+        button.onblur = () => { if (currentTerm === button) hideTermTip(); };
+        button.onclick = show;
+        word.append(button);
+        fragment.append(word);
+        end = match.index + match[0].length;
+      }
+      if (end) {
+        fragment.append(node.textContent.slice(end));
+        node.replaceWith(fragment);
+      }
+    }
+  });
+}
+
+document.addEventListener('pointerdown', event => {
+  if (!event.target.closest('.term-help')) hideTermTip();
+});
+document.addEventListener('keydown', event => { if (event.key === 'Escape') hideTermTip(); });
+window.addEventListener('scroll', hideTermTip, {passive:true});
+window.addEventListener('resize', hideTermTip);
+
 function closeMenus(){document.querySelectorAll('.nav-dropdown').forEach(el=>{el.classList.remove('open');delete el.dataset.pinned;el.querySelector('button').setAttribute('aria-expanded','false')})}
 $('#modules-menu').innerHTML=modules.map((m,i)=>`<button data-action="module:${m.id}"><span class="menu-number">0${i+1}</span><span><b>${m.title}</b><small>${m.level}</small></span></button>`).join('');
-for(const id of ['modules','help']){const wrap=$('#'+id+'-dropdown'),toggle=$('#'+id+'-toggle');const show=()=>{wrap.classList.add('open');toggle.setAttribute('aria-expanded','true')};toggle.onclick=()=>{if(id==='modules'){closeMenus();navigate('modules');return}const pinned=wrap.dataset.pinned==='true';closeMenus();if(!pinned){show();wrap.dataset.pinned='true'}};wrap.onmouseenter=()=>{if(matchMedia('(hover: hover)').matches){closeMenus();show()}};toggle.onfocus=()=>{if(id==='modules')show()};wrap.onmouseleave=()=>{if(wrap.dataset.pinned!=='true'){wrap.classList.remove('open');toggle.setAttribute('aria-expanded','false')}};wrap.addEventListener('focusout',()=>setTimeout(()=>{if(!wrap.contains(document.activeElement)){wrap.classList.remove('open');toggle.setAttribute('aria-expanded','false')}},0))}
-function updateTopNav(page){const key=page.startsWith('module/')||['modules','play','original','examples','practice-hub','test-hub'].includes(page)?'modules':page==='glossary'?'glossary':page==='home'?'home':'help';const target=key==='modules'?$('#modules-toggle'):key==='help'?$('#help-toggle'):document.querySelector('[data-nav="'+key+'"]');document.querySelectorAll('.tabs>button,.tabs>.nav-dropdown>button').forEach(b=>{const active=b===target;b.classList.toggle('active',active);active?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current')});const nav=document.querySelector('.tabs');let indicator=nav.querySelector('.nav-indicator');if(!indicator){indicator=document.createElement('span');indicator.className='nav-indicator';indicator.setAttribute('aria-hidden','true');nav.prepend(indicator)}if(target){const bounds=nav.getBoundingClientRect(),r=target.getBoundingClientRect();indicator.style.width=r.width+'px';indicator.style.height=r.height+'px';indicator.style.transform=`translate(${r.left-bounds.left-nav.clientLeft}px,${r.top-bounds.top-nav.clientTop}px)`}}
+const modulesDropdown = $('#modules-dropdown');
+const modulesToggle = $('#modules-toggle');
+function showModules() {
+  modulesDropdown.classList.add('open');
+  modulesToggle.setAttribute('aria-expanded', 'true');
+}
+modulesToggle.onclick = () => { closeMenus(); navigate('modules'); };
+modulesToggle.onfocus = showModules;
+modulesDropdown.onmouseenter = () => {
+  if (matchMedia('(hover: hover)').matches) showModules();
+};
+modulesDropdown.onmouseleave = closeMenus;
+modulesDropdown.addEventListener('focusout', event => {
+  if (!modulesDropdown.contains(event.relatedTarget)) closeMenus();
+});
+
+function updateTopNav(page){const key=page.startsWith('module/')||['modules','play','original','examples','practice-hub','test-hub'].includes(page)?'modules':page==='glossary'?'glossary':page==='home'?'home':page==='about'?'about':null;const target=key==='modules'?$('#modules-toggle'):document.querySelector('[data-nav="'+key+'"]');document.querySelectorAll('.tabs>button,.tabs>.nav-dropdown>button').forEach(b=>{const active=b===target;b.classList.toggle('active',active);active?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current')});const nav=document.querySelector('.tabs');let indicator=nav.querySelector('.nav-indicator');if(!indicator){indicator=document.createElement('span');indicator.className='nav-indicator';indicator.setAttribute('aria-hidden','true');nav.prepend(indicator)}indicator.hidden = !target;if(target){const bounds=nav.getBoundingClientRect(),r=target.getBoundingClientRect();indicator.style.width=r.width+'px';indicator.style.height=r.height+'px';indicator.style.transform=`translate(${r.left-bounds.left-nav.clientLeft}px,${r.top-bounds.top-nav.clientTop}px)`}}
 window.addEventListener('resize',()=>updateTopNav(location.hash.slice(1)||'home'));
 document.addEventListener('click',e=>{if(!e.target.closest('.nav-dropdown'))closeMenus()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenus()});
 $('#to-top').onclick=()=>window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});window.addEventListener('scroll',()=>$('#to-top').classList.toggle('visible',window.scrollY>450),{passive:true});
@@ -296,7 +442,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-acti
   try { await saveResultImage(result, user.username); }
   catch { toast('Не удалось подготовить PNG. Попробуй ещё раз.'); }
   finally { b.disabled = false; }
-}else if(action.startsWith('detail:'))detail(Number(action.split(':')[1]));else if(action==='sync'){try{for(const pending of localResults.filter(r=>!r.synced)){const saved=await api('results',{result:pending});Object.assign(pending,saved.result,{synced:true});}const d=await api('results');const map=new Map(localResults.map(r=>[r.id,r]));for(const r of d.results)map.set(r.id,{...r,synced:true});localResults=[...map.values()].sort((a,b)=>b.finishedAt.localeCompare(a.finishedAt));write(resultKey(),localResults);render()}catch(err){toast(err.message)}}});
+}else if(action.startsWith('detail:'))detail(Number(action.split(':')[1]));});
 document.querySelector('.brand').onclick=e=>{e.preventDefault();navigate('home')};const accountButton = $('#account');
 const accountWrap = document.createElement('div');
 accountWrap.className = 'account-wrap';
