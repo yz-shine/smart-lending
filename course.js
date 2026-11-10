@@ -1,5 +1,40 @@
 export const practiceLength=6;
-export function selectPracticeCases(module,shuffle){const first=module.cases.find(c=>c.id===(module.id==='telegram'?'tg-original-entry':module.id==='delivery'?'dl-original-entry':''));const last=module.cases.find(c=>c.id===(module.id==='telegram'?'tg-original-final':module.id==='delivery'?'dl-original-final':''));if(first&&last)return [first,...shuffle(module.cases.filter(c=>c!==first&&c!==last)).slice(0,4),last].map(c=>c.id);return shuffle(module.cases).slice(0,practiceLength).map(c=>c.id)}
+const routes = {
+  telegram: {
+    entry: 'tg-original-entry', final: ['tg3', 'tg-original-final'],
+    support: ['tg-guided', 'tg1', 'tg4'], independent: ['tg2', 'tg5', 'tg-original-compare'],
+    example: 'Сообщение просит передать код для вступления в группу. Сначала прочитай назначение кода. Если он подтверждает вход, правила группы можно уточнить у известного администратора.'
+  },
+  delivery: {
+    entry: 'dl-original-entry', final: ['dl4', 'dl-original-final'],
+    support: ['dl-guided', 'dl1', 'dl5'], independent: ['dl2', 'dl3', 'dl-original-compare'],
+    example: 'Сообщение говорит, что посылка задержана. Сначала открой приложение магазина и найди заказ. Так можно проверить статус, даже если номер заказа в письме выглядит знакомым.'
+  },
+  bank: {
+    entry: 'bk1', final: ['bk5', 'bk8'],
+    support: ['bk-guided', 'bk2', 'bk4'], independent: ['bk3', 'bk6', 'bk7'],
+    example: 'Звонящий просит назвать код для отмены перевода. Прочитай назначение кода в уведомлении. Операцию можно проверить в приложении банка после завершения звонка.'
+  },
+  study: {
+    entry: 'st1', final: ['st5', 'st7'],
+    support: ['st-guided', 'st3', 'st4'], independent: ['st2', 'st6', 'st8'],
+    example: 'В письме просят войти, чтобы открыть учебное задание. Открой курс привычным способом и проверь, опубликована ли там работа.'
+  },
+  market: {
+    entry: 'mk1', final: ['mk5', 'mk8'],
+    support: ['mk-guided', 'mk6', 'mk7'], independent: ['mk2', 'mk3', 'mk4'],
+    example: 'Покупатель присылает снимок оплаты. Открой заказ в приложении площадки и проверь, подтверждена ли сделка там.'
+  }
+};
+
+export function selectPracticeCases(module, shuffle, route = 'independent') {
+  const plan = routes[module.id];
+  return [plan.entry, ...shuffle(plan[route]), ...plan.final];
+}
+
+export function supportExample(moduleId) {
+  return routes[moduleId].example;
+}
 export function gradeChoice(c,choice,evidence=[]){const flags=c.evidence?.filter(x=>x[2]).map(x=>x[0]);return choice===c.correct&&(!flags||flags.length===evidence.length&&flags.every(f=>evidence.includes(f)))}
 export const lessons={
  telegram:{eyebrow:'Сообщения в мессенджере',sections:[
