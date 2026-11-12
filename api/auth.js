@@ -1,2 +1,35 @@
-import {sql,currentUser,hashPassword,verifyPassword,session,json,fail,post,limit,digest,cookie} from '../lib/db.js';
-export default async function handler(req,res){try{if(req.method==='GET'){const u=await currentUser(req);return json(res,200,{ready:Boolean(process.env.DATABASE_URL),user:u?{id:u.id,username:u.username}:null})}post(req);const {action,username,password}=req.body||{};if(action==='logout'){const token=cookie(req);if(token&&process.env.DATABASE_URL)await sql('DELETE FROM zico_sessions WHERE token_hash=$1',[digest(token)]);res.setHeader('Set-Cookie',`zico_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${process.env.VERCEL?'; Secure':''}`);return json(res,200,{ok:true})}if(!['login','register'].includes(action))throw Object.assign(Error('Неизвестное действие.'),{status:400});if(typeof username!=='string'||!/^[A-Za-z0-9_-]{3,32}$/.test(username)||typeof password!=='string'||password.length<10||password.length>128)throw Object.assign(Error('Проверь логин и пароль. Пароль должен содержать от 10 до 128 символов.'),{status:400});await limit('auth:'+digest(String(req.headers['x-forwarded-for']||req.socket?.remoteAddress||'unknown').split(',')[0]),8,60);let user;if(action==='register'){const passwordHash=await hashPassword(password);try{const r=await sql('INSERT INTO zico_users(username,password_hash) VALUES($1,$2) RETURNING id,username',[username,passwordHash]);user=r.rows[0]}catch(e){if(e.code==='23505')throw Object.assign(Error('Этот логин уже занят.'),{status:409});throw e}}else{const r=await sql('SELECT id,username,password_hash FROM zico_users WHERE lower(username)=lower($1)',[username]);const found=r.rows[0];const dummy='00000000000000000000000000000000:'+ '00'.repeat(64);const ok=await verifyPassword(password,found?.password_hash||dummy);if(!found||!ok)throw Object.assign(Error('Неверный логин или пароль.'),{status:401});user={id:found.id,username:found.username}}await session(res,user,req);return json(res,200,{user})}catch(e){fail(res,e)}}
+import { randomUUID } from 'node:crypto';
+import { sql, currentUser, session, json, fail, post, limit, digest, cookie } from '../lib/db.js';
+
+export default async function handler(req, res) {
+  try {
+    if (req.method === 'GET') {
+      const user = await currentUser(req);
+      return json(res, 200, { ready: Boolean(process.env.DATABASE_URL), user: user ? { id: user.id, username: user.username } : null });
+    }
+    post(req);
+    const { action, name } = req.body || {};
+    if (action === 'logout') {
+      const token = cookie(req);
+      if (token && process.env.DATABASE_URL) await sql('DELETE FROM zico_sessions WHERE token_hash=$1', [digest(token)]);
+      res.setHeader('Set-Cookie', `zico_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${process.env.VERCEL ? '; Secure' : ''}`);
+      return json(res, 200, { ok: true });
+    }
+    const displayName = typeof name === 'string' ? name.trim() : '';
+    if (action !== 'enter' || !/^[\p{L}\p{M}\p{N} ._'’\-]{1,32}$/u.test(displayName) || !/[\p{L}\p{N}]/u.test(displayName)) {
+      throw Object.assign(Error('Введи имя или учебное обозначение длиной до 32 символов.'), { status: 400 });
+    }
+    await limit('auth:' + digest(String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0]), 8, 60);
+    const existing = await currentUser(req);
+    if (existing?.username === displayName) return json(res, 200, { user: { id: existing.id, username: existing.username } });
+    const result = await sql(
+      'INSERT INTO zico_users(username,password_hash,display_name) VALUES($1,$2,$3) RETURNING id,display_name AS username',
+      [randomUUID().replaceAll('-', ''), '!name-only', displayName]
+    );
+    const user = result.rows[0];
+    await session(res, user, req);
+    return json(res, 200, { user });
+  } catch (error) {
+    fail(res, error);
+  }
+}
