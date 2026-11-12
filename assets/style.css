@@ -83,3 +83,20 @@ main{view-transition-name:course-page}::view-transition-old(root),::view-transit
 .hero-message-stage:hover{animation-play-state:paused}
 @media(prefers-reduced-motion:reduce){.hero-message-stage{animation:none}}
 @media(max-width:400px){.case-actions .button{font-size:12px;padding-inline:9px}}
+
+.zico-head small { font-size: .75rem; font-weight: 500; }
+.zico-launch .zico-alert {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: #d42238;
+}
+.zico-launch[aria-expanded="true"] .zico-alert { visibility: hidden; }
+.quick-check, .quick-help { margin-top: 1rem; }
+.quick-check fieldset { margin: 1rem 0; }
+.quick-check select { display: block; margin: .3rem 0 .8rem; }
+.quick-check [hidden] { display: none; }
