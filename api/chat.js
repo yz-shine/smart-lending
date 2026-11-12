@@ -98,7 +98,7 @@ export default async function handler(req, res) {
     let response;
 
     try {
-      response = await fetch(
+      const requestGemini = () => fetch(
         'https://generativelanguage.googleapis.com/v1beta/models/' +
         encodeURIComponent(model) +
         ':generateContent',
@@ -119,9 +119,15 @@ export default async function handler(req, res) {
               responseMimeType: 'application/json'
             }
           }),
-          signal: AbortSignal.timeout(40000)
+          signal: AbortSignal.timeout(25000)
         }
       );
+      response = await requestGemini();
+      if (response.status === 503) {
+        await response.body?.cancel();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        response = await requestGemini();
+      }
     } catch (error) {
       const timedOut =
         error.name === 'TimeoutError' ||
