@@ -100,3 +100,22 @@ main{view-transition-name:course-page}::view-transition-old(root),::view-transit
 .quick-check fieldset { margin: 1rem 0; }
 .quick-check select { display: block; margin: .3rem 0 .8rem; }
 .quick-check [hidden] { display: none; }
+
+.zico-head { padding: 5px 12px; min-height: 35px; }
+.zico-head small { display: inline; font-size: .8em; }
+.zico-head b { white-space: nowrap; }
+.chat-log { padding-top: 8px; }
+.module-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: start; margin-bottom: .75rem; }
+.module-heading .module-tabs { width: auto; flex-shrink: 0; margin: 0; }
+.help-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
+.matching-options,.matching-targets { display: grid; gap: .5rem; margin-top: .7rem; }
+.match-card { touch-action: none; justify-self: start; }
+.match-card[aria-pressed="true"] { outline: 2px solid #329367; }
+.match-target { border: 1px dashed #529476; border-radius: .75rem; background: #eef7f2; padding: .75rem; text-align: left; color: inherit; }
+.match-target span { display: block; margin-top: .25rem; }
+.match-ghost { position: fixed; pointer-events: none; z-index: 9999; opacity: .9; }
+@media(max-width:850px) {
+  .module-heading { flex-direction: column; align-items: stretch; }
+  .module-heading .module-tabs { align-self: flex-end; max-width: 100%; }
+}
+@media(max-width:600px) { .help-grid { grid-template-columns: 1fr; } }

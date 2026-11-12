@@ -53,6 +53,7 @@ function prepareReport(result, username, downloadedAt, context) {
     line('Скачано ' + formatDate(downloadedAt), 22, '#ffffff')
   ];
   const summary = [
+    ...(result.finalCheck ? [line("Итоговая проверка  " + result.finalCheck.score + " из " + result.finalCheck.count)] : []),
     line('Первые верные ответы  ' + (result.firstScore ?? '—') + ' из ' + (result.questionCount || cases.length), 28, '#155337', 700),
     line('Повторные попытки  ' + retries + '     ·     Подсказки Zico  ' + (result.chatCount || 0)),
     line('Маршрут  ' + (result.route === 'support' ? 'с поддержкой' : 'самостоятельный'))

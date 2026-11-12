@@ -1,3 +1,4 @@
+import {questions, pairs, gradeFinalCheck} from './final-check.js';
 import {modules,shuffle,getModule,getCase} from './content.js';
 import {saveResultImage} from './result-image.js';
 import {lessons,practiceLength,selectPracticeCases,gradeChoice,supportExample} from './course.js';
@@ -78,7 +79,29 @@ function renderNow() {
   }
 }
 function enterCourse(){loadLocal();if(pendingModule){const id=pendingModule;pendingModule=null;start(id)}else{location.hash='modules';render()}}
-function login(){main.innerHTML=`<div class="login-grid"><section class="panel login-card"><span class="eyebrow">Практика цифровой безопасности</span><h1>Научись замечать то, что скрыто в сообщении.</h1><p class="muted">Войди, чтобы сохранять результаты, или сначала посмотри учебные модули.</p><div class="segmented"><button data-auth="login" class="${authMode==='login'?'active':''}">Вход</button><button data-auth="register" class="${authMode==='register'?'active':''}">Регистрация</button></div><form id="auth-form"><label for="username">Логин</label><input class="text-input" id="username" name="username" autocomplete="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_-]{3,32}" placeholder="Например, student_01" value="${esc(read('zico.lastLogin',''))}"><p class="small muted">Латинские буквы, цифры, _ и дефис. Без настоящего имени.</p><label for="password">Пароль</label><input class="text-input" id="password" name="password" type="password" autocomplete="${authMode==='login'?'current-password':'new-password'}" required minlength="10" maxlength="128"><p class="small muted">От 10 символов. Не используй пароль от других сервисов.</p><label><input type="checkbox" id="remember" checked> Запомнить логин на этом устройстве</label><p class="small muted">Пароль может сохранить менеджер паролей твоего браузера.</p><div id="auth-error" class="error-text" role="alert"></div><button class="button primary" type="submit">${authMode==='login'?'Войти':'Создать аккаунт'}</button></form><button class="link-button" data-action="demo">Посмотреть без регистрации</button><p class="small muted">Режим просмотра сохраняет результаты только в этом браузере. В общую статистику они не попадают.</p></section><section class="home-art"><span class="eyebrow" style="color:#083820">Не каждый знакомый отправитель безопасен</span><div class="art-bubble"><small>Сообщение в Telegram</small>«Это я. Подтверди вход, чтобы проголосовать»</div><div class="art-bubble"><small>Вопрос Zico</small>Как проверить просьбу, не используя этот же чат?</div></section></div>`;document.querySelectorAll('[data-auth]').forEach(b=>b.onclick=()=>{authMode=b.dataset.auth;login()});$('#auth-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const username=f.get('username').trim();write('zico.lastLogin',$('#remember').checked?username:'');const b=e.target.querySelector('[type=submit]');b.disabled=true;try{const d=await api('auth',{action:authMode,username,password:f.get('password')});user=d.user;demo=false;enterCourse()}catch(err){$('#auth-error').textContent=err.message}finally{b.disabled=false}}}
+function login() {
+  main.innerHTML = head('Учебный курс', 'Вход по имени', 'Имя будет указано в итоговом отчёте.') + `<section class="panel login-card"><form id="auth-form">
+    <label for="participant-name">Имя или учебное обозначение</label>
+    <input class="text-input" id="participant-name" name="name" required maxlength="32" autocomplete="off" placeholder="Например, Участница А">
+    <div id="auth-error" class="error-text" role="alert"></div>
+    <button class="button primary" type="submit">Войти</button>
+  </form></section>`;
+  $('#auth-form').onsubmit = async event => {
+    event.preventDefault();
+    const button = event.target.querySelector('button');
+    button.disabled = true;
+    try {
+      const response = await api('auth', {action:'enter', name:$('#participant-name').value.trim()});
+      user = response.user;
+      demo = false;
+      enterCourse();
+    } catch (error) {
+      $('#auth-error').textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  };
+}
 const heroExamples = [
   ['@','Служба доставки','Посылка не доставлена','Подтвердите адрес и данные карты. Иначе заказ будет отменён.'],
   ['↗','Сообщение в Telegram','Вход с нового устройства','Для отмены входа просят отправить код из уведомления.'],
@@ -158,11 +181,11 @@ function shuffleOptions(caseId) {
 }
 function start(id){if(!user){pendingModule=id;navigate('login');return}const m=getModule(id);run={id:uuid(),module:id,step:0,phase:'question',route:null,answers:[],caseIds:selectPracticeCases(m,shuffle),order:[],startedAt:new Date().toISOString(),helpCount:0};run.order=shuffleOptions(run.caseIds[0]);location.hash='play';render();if(!read('zico.practiceIntro',false)){write('zico.practiceIntro',true);openChat(false)}}
 function messageMarkup(c,m){const mark=text=>{let html=esc(text);for(const [id,label] of c.evidence||[])for(const part of label.split(' · ')){const pattern=part.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp(pattern,'gi'),match=>`<button type="button" class="frag" data-evidence="${id}" aria-pressed="false">${match}</button>`)}return html};return `<article class="case-message ${({telegram:'telegram-message',delivery:'delivery-message',bank:'bank-message',study:'study-message',market:'market-message'})[m.id]||''}"><div class="message-app-label">${({telegram:'Telegram',delivery:'Входящее письмо',bank:'Уведомление банка',study:'Учебная почта',market:'Сообщение по объявлению'})[m.id]||'Учебное сообщение'}</div><div class="role-label">${mark(c.from)}</div><p class="scenario-message">${mark(c.message)}</p>${c.messages?`<div class="compare message-comparison">${c.messages.map(msg=>`<article class="mail"><b>${esc(msg.label)}</b><p>${esc(msg.text)}</p></article>`).join('')}</div>`:''}</article>${c.context?`<p class="case-context"><strong>Контекст ситуации</strong> ${mark(c.context)}</p>`:''}${c.evidence?'<p class="note">Нажимай на выделенные фрагменты, которые повлияли на решение. Повторное нажатие снимает отметку. Отмечать всё подряд не нужно.</p>':''}`}
-function play(){const m=getModule(run.module),c=getCase(run.caseIds[run.step]),total=run.caseIds.length;const stage=run.step===0?'Входная ситуация':run.step>=total-2?'Итоговая проверка':'Тренировка';main.innerHTML=head(`${stage} · ${run.step+1} из ${total}`,m.title,`Твоя роль - ${m.role.toLowerCase()}. Прочитай сообщение, выбери действие и объясни решение.`)+`<div class="case-progress" aria-label="Ситуация ${run.step+1} из ${total}">${run.caseIds.map((_,i)=>`<span class="${i<=run.step?'done':''}"></span>`).join('')}</div>`;
+function play(){if(run.phase==='final-check'){showFinalCheck();return;}const m=getModule(run.module),c=getCase(run.caseIds[run.step]),total=run.caseIds.length;const stage=run.step===0?'Входная ситуация':run.step>=total-2?'Итоговая проверка':'Тренировка';main.innerHTML=head(`${stage} · ${run.step+1} из ${total}`,m.title,`Твоя роль - ${m.role.toLowerCase()}. Прочитай сообщение, выбери действие и объясни решение.`)+`<div class="case-progress" aria-label="Ситуация ${run.step+1} из ${total}">${run.caseIds.map((_,i)=>`<span class="${i<=run.step?'done':''}"></span>`).join('')}</div>`;
 if(run.phase==='route'){main.innerHTML+=`<div class="note">По первому ответу ${run.answers[0].correct?'рекомендуется самостоятельный маршрут.':'рекомендуется маршрут с поддержкой.'} Можно выбрать другой путь. Письменное объяснение сохраняется для преподавателя.</div><div class="routes"><section class="route ${!run.answers[0].correct?'recommended':''}"><span class="eyebrow">Больше пояснений</span><h3>С поддержкой</h3><p>Сначала пример с объяснением. Затем три более простые ситуации с подсказками и две общие итоговые задачи.</p>${btn('Выбрать поддержку','route:support')}</section><section class="route ${run.answers[0].correct?'recommended':''}"><span class="eyebrow">Сначала своё решение</span><h3>Самостоятельно</h3><p>Три ситуации, где знакомые детали могут сбить с толку. Сначала попробуй решить их сама, затем выполни две общие итоговые задачи.</p>${btn('Проверить себя','route:independent')}</section></div>`;return}
 if(run.phase==='material'){main.innerHTML+=`<section class="panel"><h3>Перед тренировкой</h3><div class="note"><strong>Пример с объяснением</strong><p>${esc(supportExample(m.id))}</p></div>${m.tips.map(t=>`<p>${esc(t)}</p>`).join('')}${btn('Перейти к тренировке','material-next')}</section>`;return}
 const attempts=run.answers.filter(x=>x.caseId===c.id),last=attempts.at(-1),reviewed=run.phase==='feedback';const canRetry=run.step<total-2&&!last?.correct&&attempts.length<3;
-main.innerHTML+=`<div class="grid practice-grid"><section>${messageMarkup(c,m)}${run.route==='support'&&run.step>0&&run.step<total-2?`<details class="panel compact-hint"><summary>Подсказка к этой ситуации</summary><p>${esc(c.hint)}</p>${m.tips.map(t=>`<p class="small">${esc(t)}</p>`).join('')}</details>`:''}</section><section class="panel"><form id="case-form"><fieldset ${reviewed?'disabled':''}><legend>${esc(c.question)}</legend>${run.order.map(([id,text])=>`<label class="option"><input required type="radio" name="choice" value="${id}" ${last?.choice===id?'checked':''}><span>${esc(text)}</span></label>`).join('')}</fieldset><label class="label" for="reason">Объясни свой выбор</label><textarea id="reason" name="reason" required minlength="10" maxlength="1200" ${reviewed?'disabled':''} placeholder="Назови конкретные признаки и способ независимой проверки.">${esc(last?.reason||'')}</textarea><p class="small muted">Первый ответ сохраняется отдельно от повторных попыток. Объяснение проверяет преподаватель.</p>${reviewed?'':`<div class="case-actions">${btn('Спросить Zico','zico','secondary')}<button class="button action-button" type="submit">Сохранить ответ ${forwardIcon}</button></div>`}</form>${reviewed?`<div class="feedback ${last.correct?'':'error'}"><h3>${last.correct?(c.evidence?'Действие и отметки проверены':'Действие выбрано верно'):'Проверь своё решение'}</h3><p>${esc(last.correct?c.explanation:c.hint)}</p>${!last.correct&&!canRetry?`<p>${esc(c.explanation)}</p>`:''}<div class="button-row">${canRetry?btn('Повторить попытку','retry'):''}${btn(run.step===0?'Выбрать маршрут':run.step===total-1?'Посмотреть результат':run.step===total-3?'К итоговой проверке':'Следующая ситуация','next')}</div></div>`:''}${reviewed&&!last.correct?`<div class="note"><p>Трудно определить важную деталь? Попроси Zico помочь.</p>${btn('Спросить Zico','zico','secondary')}</div>`:''}</section></div>`;
+main.innerHTML+=`<div class="grid practice-grid"><section>${messageMarkup(c,m)}${run.route==='support'&&run.step>0&&run.step<total-2?`<details class="panel compact-hint"><summary>Подсказка к этой ситуации</summary><p>${esc(c.hint)}</p>${m.tips.map(t=>`<p class="small">${esc(t)}</p>`).join('')}</details>`:''}</section><section class="panel"><form id="case-form"><fieldset ${reviewed?'disabled':''}><legend>${esc(c.question)}</legend>${run.order.map(([id,text])=>`<label class="option"><input required type="radio" name="choice" value="${id}" ${last?.choice===id?'checked':''}><span>${esc(text)}</span></label>`).join('')}</fieldset><label class="label" for="reason">Объясни свой выбор</label><textarea id="reason" name="reason" required minlength="10" maxlength="1200" ${reviewed?'disabled':''} placeholder="Назови конкретные признаки и способ независимой проверки.">${esc(last?.reason||'')}</textarea><p class="small muted">Первый ответ сохраняется отдельно от повторных попыток. Объяснение проверяет преподаватель.</p>${reviewed?'':`<div class="case-actions">${btn('Спросить Zico','zico','secondary')}<button class="button action-button" type="submit">Сохранить ответ ${forwardIcon}</button></div>`}</form>${reviewed?`<div class="feedback ${last.correct?'':'error'}"><h3>${last.correct?(c.evidence?'Действие и отметки проверены':'Действие выбрано верно'):'Проверь своё решение'}</h3><p>${esc(last.correct?c.explanation:c.hint)}</p>${!last.correct&&!canRetry?`<p>${esc(c.explanation)}</p>`:''}<div class="button-row">${canRetry?btn('Повторить попытку','retry'):''}${btn(run.step===0?'Выбрать маршрут':run.step===total-1?'К итоговым вопросам':run.step===total-3?'К итоговой проверке':'Следующая ситуация','next')}</div></div>`:''}${reviewed&&!last.correct?`<div class="note"><p>Трудно определить важную деталь? Попроси Zico помочь.</p>${btn('Спросить Zico','zico','secondary')}</div>`:''}</section></div>`;
 addTermTips(main, '.case-message p, .case-context');
 const flagButtons=[...document.querySelectorAll('[data-evidence]')];const selected=new Set(last?.evidence||[]);function syncFlags(){for(const b of flagButtons){b.setAttribute('aria-pressed',String(selected.has(b.dataset.evidence)));b.disabled=reviewed}}syncFlags();for(const b of flagButtons)b.onclick=()=>{const id=b.dataset.evidence;selected.has(id)?selected.delete(id):selected.add(id);syncFlags()};
 if(!reviewed)$('#case-form').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target),reason=f.get('reason').trim(),evidence=[...selected];if(reason.length<10){toast('Добавь короткое объяснение своими словами.');return}if(c.evidence&&!evidence.length){toast('Отметь в сообщении фрагмент, который повлиял на решение.');return}run.answers.push({caseId:c.id,choice:f.get('choice'),reason,evidence,correct:gradeChoice(c,f.get('choice'),evidence),attempt:attempts.length+1,at:new Date().toISOString()});run.phase='feedback';
@@ -175,7 +198,7 @@ const feedback = $('.feedback');
 feedback.setAttribute('tabindex', '-1');
 feedback.focus({preventScroll:true});
 window.scrollTo({top:scrollTop, behavior:'instant'});}}
-async function finish(){const result={...run,complete:true,finishedAt:new Date().toISOString(),questionCount:run.caseIds.length,firstScore:run.caseIds.filter(id=>run.answers.find(a=>a.caseId===id)?.correct).length,finalCorrect:run.answers.filter(a=>a.caseId===run.caseIds.at(-1)).at(-1)?.correct,chatCount:run.helpCount};delete result.order;localResults.unshift(result);write(resultKey(),localResults);run=null;if(!demo){try{const saved=await api('results',{result});Object.assign(result,saved.result,{synced:true});write(resultKey(),localResults)}catch{toast('Результат сохранён в браузере. Отправка на сервер пока не удалась.')}}location.hash='progress';render()}
+async function finish(){const result={...run,complete:true,finishedAt:new Date().toISOString(),questionCount:run.caseIds.length+run.finalCheck.count,firstScore:run.caseIds.filter(id=>run.answers.find(a=>a.caseId===id)?.correct).length+run.finalCheck.score,finalCorrect:run.answers.filter(a=>a.caseId===run.caseIds.at(-1)).at(-1)?.correct,chatCount:run.helpCount};delete result.order;localResults.unshift(result);write(resultKey(),localResults);run=null;if(!demo){try{const saved=await api('results',{result});Object.assign(result,saved.result,{synced:true});write(resultKey(),localResults)}catch{toast('Результат сохранён в браузере. Отправка на сервер пока не удалась.')}}location.hash='progress';render()}
 
 function progress(){const completed=localResults.filter(x=>x.complete && getModule(x.module));main.innerHTML=head('Личный кабинет','Мои результаты','Здесь разделены первые ответы, повторные попытки и обращения за помощью. Письменные объяснения требуют проверки преподавателем.')+`<div class="stats-grid"><section class="panel"><strong>${new Set(completed.map(x=>x.module)).size}</strong><span class="muted">модулей пройдено</span></section><section class="panel"><strong>${completed.length}</strong><span class="muted">завершённых прохождений</span></section><section class="panel"><strong>${completed.reduce((n,r)=>n+(r.chatCount||0),0)}</strong><span class="muted">обращений к помощнику в прохождениях</span></section></div><section class="panel table-scroll" style="margin-top:20px"><table><thead><tr><th>Модуль</th><th>Первые ответы</th><th>Повторные попытки</th><th>Сохранение</th><th>Подробности</th><th>Скачать</th></tr></thead><tbody>${completed.map((r,i)=>`<tr><td>${esc(moduleTitle(r.module))}<br><small>${new Date(r.finishedAt).toLocaleString('ru-RU')}</small></td><td>${r.firstScore??'—'} / ${r.questionCount||r.caseIds?.length||3}</td><td>${Math.max(0,(r.answers?.length||0)-(r.questionCount||r.caseIds?.length||3))}</td><td>${r.synced?'Сервер и браузер':'Этот браузер'}</td><td><button class="link-button" data-action="detail:${i}">Ответы</button></td><td><button class="link-button" data-action="png:${i}" aria-label="Скачать PNG: ${esc(moduleTitle(r.module))}">PNG</button></td></tr>`).join('')||'<tr><td colspan="6">Пока нет завершённых разборов.</td></tr>'}</tbody></table></section><div id="result-detail"></div>`}
 async function syncResults() {
@@ -205,15 +228,23 @@ async function syncResults() {
 }
 
 function detail(i){const r=localResults.filter(x=>x.complete && getModule(x.module))[i];if(!r)return;$('#result-detail').innerHTML=`<section class="panel" style="margin-top:20px"><h3>${esc(moduleTitle(r.module))}</h3><p class="small muted">Маршрут - ${r.route==='support'?'с поддержкой':'самостоятельный'}</p>${(r.answers||[]).map(a=>`<div class="answer-review"><b>${esc(getCase(a.caseId)?.question||'Исходный модуль')}</b><p>${esc(getCase(a.caseId)?.options.find(o=>o[0]===a.choice)?.[1]||a.choice)}</p><p>${esc(a.reason)}</p>${a.evidence?.length?`<p class="small muted">Отмечены фрагменты: ${a.evidence.map(id=>esc(getCase(a.caseId)?.evidence?.find(e=>e[0]===id)?.[1]||id)).join('; ')}</p>`:''}<small>Попытка ${a.attempt} · ${a.correct?'действие верное':'действие требует пересмотра'}</small></div>`).join('')}<p class="small muted">Объяснения автоматически не оценивались.</p></section>`;$('#result-detail').scrollIntoView({behavior:'smooth'})}
-function about(){main.innerHTML=head('Помощь','Как проходить курс','Учебный модуль помогает разбирать требования сообщения, а не угадывать по оформлению.')+`<div class="steps"><article class="step"><b>01 · Прими роль</b><span>Ты покупатель, владелец аккаунта или участник учебной группы. Учитывай, что уже известно в ситуации.</span></article><article class="step"><b>02 · Объясни действие</b><span>Назови основание своего решения. Адреса .example вымышлены, переходить по ним не нужно.</span></article><article class="step"><b>03 · Проверь и повтори</b><span>Первые ответы сохраняются отдельно. Повторная попытка помогает учиться, но не стирает первую ошибку.</span></article></div><section class="panel"><h3>Помощник Zico</h3><p>Круглая кнопка в правом нижнем углу открывает окно поверх страницы. Помощник должен уточнять затруднение и давать подсказку, не выдавая решение сразу.</p><p>Используй подсказку, чтобы ещё раз обдумать своё решение. Не отправляй настоящие пароли, коды, платёжные данные и сведения о других людях. Текст обращения передаётся внешнему сервису ИИ.</p><h3>Что сохраняется</h3><p>В режиме просмотра результаты остаются в этом браузере. После подключения базы данных аккаунт сохраняет выбранный маршрут, ответы, повторные попытки и число обращений к помощнику. В профиле открой «Мои результаты». Там видны первые ответы, повторные попытки и обращения к Zico. Нажми PNG в нужной строке, чтобы сохранить отчёт.</p><h3>История переписки с Zico</h3><p>Войди в свой аккаунт и открой помощника. Последние 60 сообщений доступны в том же браузере после обновления страницы. Кнопка «Очистить чат» удаляет эту переписку из браузера.</p>${btn('Открыть чат Zico','zico','secondary')}<p>Проект не определяет реальную безопасность сайта и не проверяет адреса автоматически. Ситуации учебные.</p></section>`}
+function about() {
+  main.innerHTML = head('Помощь','Как проходить курс','Открой модуль и выполни задания по порядку.') + `<div class="help-grid">
+    <section class="panel"><h3>Практика и тест</h3><p>Ответь на входной вопрос и выбери маршрут. После практики выполни итоговую проверку. Первые ответы учитываются в общем балле.</p></section>
+    <section class="panel"><h3>ИИ-помощник Zico</h3><p>Нажми на значок Z внизу экрана или на кнопку рядом с обратной связью. Опиши, какая деталь вызвала сомнение.</p><p class="small muted">Используй учебные примеры без реальных кодов и личных данных.</p>${btn('Открыть чат Zico','zico','secondary')}</section>
+    <section class="panel"><h3>Результат и отчёт</h3><p>Открой «Мои результаты» в профиле. Кнопка PNG рядом с прохождением скачивает отчёт с твоим именем и баллом.</p></section>
+    <section class="panel"><h3>История чата</h3><p>Открой чат в том же браузере, чтобы увидеть предыдущие сообщения. Кнопка «Очистить чат» удаляет историю.</p></section>
+  </div>`;
+}
 function original(){main.innerHTML=head('Дополнительный тренажёр','Доставка · разбор писем','Сохранены материалы, два маршрута, подсказки и скачивание SVG. Этот модуль учитывается отдельно от новых ролевых разборов.')+`<iframe title="Исходный учебный модуль о доставке" class="original-frame" src="modules/Фишинговые сообщения СМАРТ.html"></iframe>`}
 function sectionHub(label,title,target){main.innerHTML=head(label,title,'Выбери тему, чтобы перейти к нужной части модуля.')+`<div class="catalog">${modules.map(m=>`<article class="panel module-card"><span class="eyebrow">${m.level}</span><h3>${m.title}</h3><p class="muted">${m.summary}</p>${btn('Открыть раздел','section:'+m.id+':'+target)}</article>`).join('')}</div>`}
 function modulePage(id,tab='theory'){const m=getModule(id),lesson=lessons[id];if(!m||!lesson){catalog();return}const tabs=[['theory','Теория'],['examples','Примеры'],['practice','Практика'],['test','Тест']];if(!tabs.some(t=>t[0]===tab))tab='theory';currentModuleId=id;currentModuleTab=tab;main.innerHTML=head('Учебный модуль',m.title,m.summary)+`<div class="module-subnav module-tabs" role="tablist" aria-label="Разделы модуля">${tabs.map(([key,label])=>`<button role="tab" id="tab-${key}" aria-selected="${key===tab}" aria-controls="module-panel" tabindex="${key===tab?'0':'-1'}" data-action="tab:${id}:${key}">${label}</button>`).join('')}</div><section id="module-panel" role="tabpanel" aria-labelledby="tab-${tab}" tabindex="-1"></section>`;
+const moduleHead=main.querySelector('.section-head');moduleHead.classList.add('module-heading');moduleHead.append(main.querySelector('.module-tabs'));
 const panel=$('#module-panel');if(tab==='theory'){panel.innerHTML=`<div class="module-tab-heading"><div><span class="eyebrow">${lesson.eyebrow}</span><h3>Разберёмся по шагам</h3></div>${btn('К примерам','tab:'+id+':examples','secondary')}</div><div class="theory-sections">${lesson.sections.map(([title,...paras],i)=>`<article class="panel theory-card"><div class="theory-number">0${i+1}</div><div><h3>${esc(title)}</h3>${paras.map(p=>`<p>${esc(p)}</p>`).join('')}</div></article>`).join('')}</div>`}
 else if(tab==='examples'){panel.innerHTML=`<div class="module-tab-heading"><div><span class="eyebrow">Примеры с объяснениями</span><h3>Сравни просьбы и способы проверки</h3></div>${btn('К практике','tab:'+id+':practice','secondary')}</div><div class="example-list">${lesson.exampleIds.map((caseId,i)=>{const c=getCase(caseId);return `<article class="example-card"><span class="eyebrow">Пример ${i+1}</span><div class="grid"><section>${messageMarkup({...c,evidence:undefined},m)}</section><section class="panel"><h3>Разбор</h3><p>${esc(c.explanation)}</p><p class="small muted">${esc(c.hint)}</p></section></div></article>`}).join('')}</div>`}
 else if(tab==='practice'){panel.innerHTML=`<section class="panel practice-intro"><div class="module-tab-heading"><div><span class="eyebrow">Практическое прохождение</span><h3>Попробуй в своей роли</h3></div>${btn(user?'Начать практику':'Войти и перейти к практике','start:'+id)}</div><p>Твоя роль - ${m.role.toLowerCase()}. Пройди шесть ситуаций, выбери действие и объясни решение.</p><div class="steps"><article class="step"><b>1 · Входная ситуация</b><span>Начни со своего решения. Затем выбери маршрут с поддержкой или самостоятельный.</span></article><article class="step"><b>2 · Три тренировки</b><span>С поддержкой будут пример и подсказки. В самостоятельном маршруте ситуации сложнее.</span></article><article class="step"><b>3 · Две итоговые задачи</b><span>Примени правило к другим случаям. Первые ответы и объяснения сохраняются.</span></article></div>${id==='telegram'?'<p class="note">В модуле сохранены исходное уведомление об изменении двухэтапной проверки, сравнение сообщений А и Б и новая ситуация с ограничением в 15 минут.</p>':id==='delivery'?'<p class="note">В модуле сохранены письмо о доплате, сравнение двух писем и итоговый возврат платы. Подозрительные фрагменты отмечаются прямо в тексте.</p>':''}</section>${id==='delivery'?`<div class="original-banner"><div><b>Прежний тренажёр доставки</b><p>Отдельная версия из второй работы с входной проверкой четырёх уведомлений и сохранением SVG.</p></div>${btn('Открыть тренажёр','original','secondary')}</div>`:''}`}
-else{const completed=localResults.find(r=>r.module===id&&r.complete);panel.innerHTML=`<section class="panel practice-intro"><div class="module-tab-heading"><div><span class="eyebrow">Итоговая проверка</span><h3>Проверь перенос правила</h3></div>${btn(user?'Начать прохождение':'Войти и перейти к практике','start:'+id)}</div><p>Две итоговые ситуации находятся в конце шестишагового прохождения. В них нужно самостоятельно выбрать действие, указать существенные детали и объяснить решение. Подсказка с разбором появляется после ответа.</p><p>Автоматически проверяются действие и отметки в сообщении, если они предусмотрены. Текстовое объяснение сохраняется для преподавателя и не получает автоматический балл.</p>${completed?`<div class="note">У тебя уже есть завершённое прохождение. Результат первого выбора ${completed.firstScore} из ${completed.questionCount||completed.caseIds?.length||3}.</div><div class="button-row">${btn('Открыть мои результаты','progress','secondary')}</div>`:'<p class="note">Сначала пройди входную ситуацию и тренировку. Отдельно пропустить их и получить итоговый результат нельзя.</p>'}</section>`}
-if (tab === 'test') addQuickCheck(panel);
+else{const completed=localResults.find(r=>r.module===id&&r.complete);panel.innerHTML=`<section class="panel practice-intro"><div class="module-tab-heading"><div><span class="eyebrow">Итоговая проверка</span><h3>Проверь перенос правила</h3></div>${btn(user?'Начать прохождение':'Войти и перейти к практике','start:'+id)}</div><p>После шести ситуаций появятся два вопроса с несколькими ответами и одно задание на сопоставление. Все девять заданий входят в итоговый балл. В них нужно самостоятельно выбрать действие, указать существенные детали и объяснить решение. Подсказка с разбором появляется после ответа.</p><p>Автоматически проверяются действие и отметки в сообщении, если они предусмотрены. Текстовое объяснение сохраняется для преподавателя и не получает автоматический балл.</p>${completed?`<div class="note">У тебя уже есть завершённое прохождение. Результат первого выбора ${completed.firstScore} из ${completed.questionCount||completed.caseIds?.length||3}.</div><div class="button-row">${btn('Открыть мои результаты','progress','secondary')}</div>`:'<p class="note">Сначала пройди входную ситуацию и тренировку. Отдельно пропустить их и получить итоговый результат нельзя.</p>'}</section>`}
+
 if (tab === 'theory' || tab === 'examples') addTermTips(panel);
 const footer = document.createElement('div');
 footer.className = 'module-footer-actions';
@@ -452,7 +483,7 @@ document.addEventListener('pointerdown', event => {
   if ($('#zico-open').getAttribute('aria-expanded') !== 'true') return;
   if (!event.target.closest('#zico-panel, #zico-open, [data-action="zico"]')) closeChat(false);
 });
-document.addEventListener('click',async e=>{const b=e.target.closest('[data-action],[data-nav]');if(!b)return;const action=b.dataset.action||b.dataset.nav;if(['home','modules','progress','about','original','glossary','login'].includes(action)){navigate(action);return}if(action.startsWith('section:')){const [,id,target]=action.split(':');navigate('module/'+id+'/'+({'example':'examples','module-practice':'practice','module-test':'test'}[target]||'theory'));return}if(action.startsWith('tab:')){const [,id,tab]=action.split(':');navigate('module/'+id+'/'+tab);return}if(action.startsWith('module:')){navigate('module/'+action.split(':')[1]);return}if(action.startsWith('anchor:')){document.getElementById(action.split(':')[1])?.scrollIntoView({behavior:'smooth'});return}if(action==='course-map'){document.getElementById('course-map')?.scrollIntoView({behavior:'smooth'});return}if(['examples','practice-hub','test-hub'].includes(action)){navigate(action);return}if(action.startsWith('start:')){if(run&&!confirm('Начать заново?'))return;start(action.split(':')[1]);return}if(action==='demo'){demo=true;user={id:'demo',username:'Просмотр'};enterCourse()}else if(action==='zico')openChat();else if(action.startsWith('route:')){run.route=action.split(':')[1];run.caseIds=selectPracticeCases(getModule(run.module),shuffle,run.route);run.step=1;run.phase=run.route==='support'?'material':'question';run.order=shuffleOptions(run.caseIds[1]);render()}else if(action==='material-next'){run.phase='question';render()}else if(action==='retry'){if(run.answers.length>=60){toast('Слишком много повторных попыток. Начни новый разбор.');return}run.phase='question';run.order=shuffleOptions(run.caseIds[run.step]);render()}else if(action==='next'){if(run.step===0){run.phase='route';render()}else if(run.step===run.caseIds.length-1){await finish()}else{run.step++;run.phase='question';run.order=shuffleOptions(run.caseIds[run.step]);render()}}else if(action.startsWith('png:')){
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-action],[data-nav]');if(!b)return;const action=b.dataset.action||b.dataset.nav;if(['home','modules','progress','about','original','glossary','login'].includes(action)){navigate(action);return}if(action.startsWith('section:')){const [,id,target]=action.split(':');navigate('module/'+id+'/'+({'example':'examples','module-practice':'practice','module-test':'test'}[target]||'theory'));return}if(action.startsWith('tab:')){const [,id,tab]=action.split(':');navigate('module/'+id+'/'+tab);return}if(action.startsWith('module:')){navigate('module/'+action.split(':')[1]);return}if(action.startsWith('anchor:')){document.getElementById(action.split(':')[1])?.scrollIntoView({behavior:'smooth'});return}if(action==='course-map'){document.getElementById('course-map')?.scrollIntoView({behavior:'smooth'});return}if(['examples','practice-hub','test-hub'].includes(action)){navigate(action);return}if(action.startsWith('start:')){if(run&&!confirm('Начать заново?'))return;start(action.split(':')[1]);return}if(action==='zico')openChat();else if(action.startsWith('route:')){run.route=action.split(':')[1];run.caseIds=selectPracticeCases(getModule(run.module),shuffle,run.route);run.step=1;run.phase=run.route==='support'?'material':'question';run.order=shuffleOptions(run.caseIds[1]);render()}else if(action==='material-next'){run.phase='question';render()}else if(action==='retry'){if(run.answers.length>=60){toast('Слишком много повторных попыток. Начни новый разбор.');return}run.phase='question';run.order=shuffleOptions(run.caseIds[run.step]);render()}else if(action==='next'){if(run.step===0){run.phase='route';render()}else if(run.step===run.caseIds.length-1){run.phase='final-check';render();window.scrollTo(0,0)}else{run.step++;run.phase='question';run.order=shuffleOptions(run.caseIds[run.step]);render()}}else if(action.startsWith('png:')){
   const result = localResults.filter(item => item.complete && getModule(item.module))[Number(action.split(':')[1])];
   if (!result || b.disabled) return;
   b.disabled = true;
@@ -550,42 +581,73 @@ async function init(){try{const d=await api('auth');cloudReady=d.ready;user=d.us
 
 const composeInput=$('#chat-input');function resizeCompose(){composeInput.style.height='auto';composeInput.style.height=Math.min(composeInput.scrollHeight,100)+'px'}composeInput.addEventListener('input',resizeCompose);composeInput.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();$('#chat-form').requestSubmit()}});$('#chat-form').addEventListener('submit',()=>requestAnimationFrame(resizeCompose));
 
-function addQuickCheck(panel) {
-  const questions = [
-    ['Какие способы позволяют проверить сообщение независимо от отправителя?',
-      ['Открыть привычное приложение самостоятельно', 'Позвонить по номеру из сообщения', 'Уточнить сведения через заранее известный контакт', 'Перейти по ссылке из сообщения'], ['0', '2']],
-    ['Какие признаки требуют дополнительной проверки?',
-      ['Просьба передать одноразовый код', 'Угроза заблокировать аккаунт через 15 минут', 'Самостоятельное открытие приложения', 'Уведомление о действии, которое ты только что начала в приложении'], ['0', '1']]
-  ];
-  const pairs = [
-    ['Письмо о проблеме с доставкой', 'Проверить статус в приложении магазина'],
-    ['Неожиданный код для перевода', 'Проверить уведомления в приложении банка'],
-    ['Сообщение о новом входе в Telegram', 'Проверить активные сеансы в Telegram']
-  ];
+function showFinalCheck() {
+  main.innerHTML = head('Итоговая проверка', getModule(run.module).title, 'Ответь на три задания. Каждый верный ответ добавит один балл.');
   const form = document.createElement('form');
   form.className = 'panel quick-check';
-  form.innerHTML = `<h3>Дополнительная самопроверка</h3>
-    ${questions.map(([question, options], i) => `<fieldset><legend>${question}</legend><p>Отметь все подходящие варианты.</p>
-      ${options.map((option, j) => `<label class="option"><input type="checkbox" name="q${i}" value="${j}"> ${option}</label>`).join('')}
-      <p role="status" data-check></p></fieldset>`).join('')}
+  form.innerHTML = `
+    ${questions.map((question, i) => `<fieldset><legend>${question.title}</legend><p class="small muted">Отметь все подходящие варианты.</p>
+      ${question.options.map((option, j) => `<label class="option"><input type="checkbox" name="q${i}" value="${j}"> ${option}</label>`).join('')}
+    </fieldset>`).join('')}
     <fieldset><legend>Сопоставь ситуацию со способом проверки</legend>
-      ${pairs.map(([situation], i) => `<label>${situation}<select class="text-input" name="match${i}" required>
-        <option value="">Выбери действие</option>${[2, 0, 1].map(j => `<option value="${j}">${pairs[j][1]}</option>`).join('')}</select></label>`).join('')}
-      <p role="status" data-check></p></fieldset>
-    <button class="button primary" type="submit">Проверить ответы</button>
-    <div class="note quick-help" hidden><p>Если трудно определить важную деталь, попроси Zico помочь.</p>${btn('Спросить Zico','zico','secondary')}</div>`;
-  panel.append(form);
-  form.addEventListener('submit', event => {
-    event.preventDefault();
-    const answers = new FormData(form);
-    const checks = questions.map(([, , expected], i) => {
-      const selected = answers.getAll('q' + i);
-      return selected.length === expected.length && expected.every(value => selected.includes(value));
+      <p class="small muted">Перетащи карточку действия на ситуацию или выбери карточку и нажми на ситуацию.</p>
+      <div class="matching-options">${[2,0,1].map(i => `<button type="button" class="button secondary match-card" data-card="${i}" aria-pressed="false">${pairs[i][1]}</button>`).join('')}</div>
+      <div class="matching-targets">${pairs.map(([label],i) => `<button type="button" class="match-target" data-target="${i}"><strong>${label}</strong><span>Перетащи действие сюда</span></button>`).join('')}</div>
+    </fieldset>
+    <p class="error-text" role="alert"></p>
+    <div class="button-row"><button class="button primary" type="submit">Посмотреть результат</button></div>`;
+  main.append(form);
+  const matching = Array(pairs.length).fill(-1);
+  let selected = null;
+  function assign(target, card) {
+    if (card === null || !target) return;
+    const previous = matching.indexOf(card);
+    if (previous >= 0) matching[previous] = -1;
+    matching[Number(target.dataset.target)] = card;
+    form.querySelectorAll('[data-target]').forEach((button, i) => {
+      button.querySelector('span').textContent = pairs[matching[i]]?.[1] || 'Перетащи действие сюда';
     });
-    checks.push(pairs.every((_, i) => answers.get('match' + i) === String(i)));
-    form.querySelectorAll('[data-check]').forEach((output, i) => {
-      output.textContent = checks[i] ? 'Верно.' : 'Пересмотри ответ и попробуй ещё раз.';
-    });
-    form.querySelector('.quick-help').hidden = checks.every(Boolean);
+    selected = null;
+    form.querySelectorAll('[data-card]').forEach(button => button.setAttribute('aria-pressed','false'));
+  }
+  form.querySelectorAll('[data-card]').forEach(card => {
+    const index = Number(card.dataset.card);
+    card.onclick = () => {
+      selected = index;
+      form.querySelectorAll('[data-card]').forEach(button => button.setAttribute('aria-pressed', String(button === card)));
+    };
+    card.onpointerdown = event => {
+      if (event.button !== 0) return;
+      card.setPointerCapture(event.pointerId);
+      const ghost = card.cloneNode(true);
+      ghost.classList.add('match-ghost');
+      ghost.setAttribute('aria-hidden','true');
+      const move = point => {
+        ghost.style.left = point.clientX + 12 + 'px';
+        ghost.style.top = point.clientY + 12 + 'px';
+      };
+      card.onpointermove = point => {
+        move(point);
+        if (!ghost.isConnected) document.body.append(ghost);
+      };
+      card.onlostpointercapture = () => {
+        ghost.remove();
+        card.onpointermove = null;
+      };
+      card.onpointerup = point => assign(document.elementFromPoint(point.clientX,point.clientY)?.closest('[data-target]'), index);
+    };
   });
+  form.querySelectorAll('[data-target]').forEach(target => target.onclick = () => assign(target, selected));
+  form.onsubmit = async event => {
+    event.preventDefault();
+    const data = new FormData(form);
+    try {
+      run.finalCheck = gradeFinalCheck({multiple: questions.map((_,i) => data.getAll('q'+i).map(Number)), matching});
+    } catch (error) {
+      form.querySelector('[role=alert]').textContent = error.message;
+      return;
+    }
+    form.querySelector('[type=submit]').disabled = true;
+    await finish();
+  };
 }
