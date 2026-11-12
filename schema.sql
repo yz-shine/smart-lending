@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS zico_users (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  username varchar(32) NOT NULL,
+ display_name varchar(32),
  password_hash text NOT NULL,
  is_admin boolean NOT NULL DEFAULT false,
  created_at timestamptz NOT NULL DEFAULT now()
