@@ -50,6 +50,7 @@ function render() {
 
 function renderNow() {
   const page = location.hash.slice(1) || 'home';
+  const firstPage = renderedPage === undefined;
   const changedPage = renderedPage !== page;
   if (changedPage && $('#zico-open').getAttribute('aria-expanded') === 'true') closeChat(false);
   renderedPage = page;
@@ -74,6 +75,7 @@ function renderNow() {
   if (page === 'progress' && changedPage && user && !demo) syncResults();
   window.scrollTo({top:0, behavior:'instant'});
   main.focus({preventScroll:true});
+  if (firstPage) openChat(false);
   if (changedPage && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     main.animate([{opacity:.76}, {opacity:1}], {duration:170, easing:'ease-out'});
   }
@@ -179,7 +181,7 @@ function shuffleOptions(caseId) {
   lastOptionOrders.set(caseId, order.map(([key]) => key));
   return order;
 }
-function start(id){if(!user){pendingModule=id;navigate('login');return}const m=getModule(id);run={id:uuid(),module:id,step:0,phase:'question',route:null,answers:[],caseIds:selectPracticeCases(m,shuffle),order:[],startedAt:new Date().toISOString(),helpCount:0};run.order=shuffleOptions(run.caseIds[0]);location.hash='play';render();if(!read('zico.practiceIntro',false)){write('zico.practiceIntro',true);openChat(false)}}
+function start(id){if(!user){pendingModule=id;navigate('login');return}const m=getModule(id);run={id:uuid(),module:id,step:0,phase:'question',route:null,answers:[],caseIds:selectPracticeCases(m,shuffle),order:[],startedAt:new Date().toISOString(),helpCount:0};run.order=shuffleOptions(run.caseIds[0]);location.hash='play';render()}
 function messageMarkup(c,m){const mark=text=>{let html=esc(text);for(const [id,label] of c.evidence||[])for(const part of label.split(' · ')){const pattern=part.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp(pattern,'gi'),match=>`<button type="button" class="frag" data-evidence="${id}" aria-pressed="false">${match}</button>`)}return html};return `<article class="case-message ${({telegram:'telegram-message',delivery:'delivery-message',bank:'bank-message',study:'study-message',market:'market-message'})[m.id]||''}"><div class="message-app-label">${({telegram:'Telegram',delivery:'Входящее письмо',bank:'Уведомление банка',study:'Учебная почта',market:'Сообщение по объявлению'})[m.id]||'Учебное сообщение'}</div><div class="role-label">${mark(c.from)}</div><p class="scenario-message">${mark(c.message)}</p>${c.messages?`<div class="compare message-comparison">${c.messages.map(msg=>`<article class="mail"><b>${esc(msg.label)}</b><p>${esc(msg.text)}</p></article>`).join('')}</div>`:''}</article>${c.context?`<p class="case-context"><strong>Контекст ситуации</strong> ${mark(c.context)}</p>`:''}${c.evidence?'<p class="note">Нажимай на выделенные фрагменты, которые повлияли на решение. Повторное нажатие снимает отметку. Отмечать всё подряд не нужно.</p>':''}`}
 function play(){if(run.phase==='final-check'){showFinalCheck();return;}const m=getModule(run.module),c=getCase(run.caseIds[run.step]),total=run.caseIds.length;const stage=run.step===0?'Входная ситуация':run.step>=total-2?'Итоговая проверка':'Тренировка';main.innerHTML=head(`${stage} · ${run.step+1} из ${total}`,m.title,`Твоя роль - ${m.role.toLowerCase()}. Прочитай сообщение, выбери действие и объясни решение.`)+`<div class="case-progress" aria-label="Ситуация ${run.step+1} из ${total}">${run.caseIds.map((_,i)=>`<span class="${i<=run.step?'done':''}"></span>`).join('')}</div>`;
 if(run.phase==='route'){main.innerHTML+=`<div class="note">По первому ответу ${run.answers[0].correct?'рекомендуется самостоятельный маршрут.':'рекомендуется маршрут с поддержкой.'} Можно выбрать другой путь. Письменное объяснение сохраняется для преподавателя.</div><div class="routes"><section class="route ${!run.answers[0].correct?'recommended':''}"><span class="eyebrow">Больше пояснений</span><h3>С поддержкой</h3><p>Сначала пример с объяснением. Затем три более простые ситуации с подсказками и две общие итоговые задачи.</p>${btn('Выбрать поддержку','route:support')}</section><section class="route ${run.answers[0].correct?'recommended':''}"><span class="eyebrow">Сначала своё решение</span><h3>Самостоятельно</h3><p>Три ситуации, где знакомые детали могут сбить с толку. Сначала попробуй решить их сама, затем выполни две общие итоговые задачи.</p>${btn('Проверить себя','route:independent')}</section></div>`;return}
@@ -197,7 +199,8 @@ if (hint) hint.open = Boolean(hintOpen);
 const feedback = $('.feedback');
 feedback.setAttribute('tabindex', '-1');
 feedback.focus({preventScroll:true});
-window.scrollTo({top:scrollTop, behavior:'instant'});}}
+window.scrollTo({top:scrollTop, behavior:'instant'});
+if (!run.answers.at(-1).correct) openChat(false);}}
 async function finish(){const result={...run,complete:true,finishedAt:new Date().toISOString(),questionCount:run.caseIds.length+run.finalCheck.count,firstScore:run.caseIds.filter(id=>run.answers.find(a=>a.caseId===id)?.correct).length+run.finalCheck.score,finalCorrect:run.answers.filter(a=>a.caseId===run.caseIds.at(-1)).at(-1)?.correct,chatCount:run.helpCount};delete result.order;localResults.unshift(result);write(resultKey(),localResults);run=null;if(!demo){try{const saved=await api('results',{result});Object.assign(result,saved.result,{synced:true});write(resultKey(),localResults)}catch{toast('Результат сохранён в браузере. Отправка на сервер пока не удалась.')}}location.hash='progress';render()}
 
 function progress(){const completed=localResults.filter(x=>x.complete && getModule(x.module));main.innerHTML=head('Личный кабинет','Мои результаты','Здесь разделены первые ответы, повторные попытки и обращения за помощью. Письменные объяснения требуют проверки преподавателем.')+`<div class="stats-grid"><section class="panel"><strong>${new Set(completed.map(x=>x.module)).size}</strong><span class="muted">модулей пройдено</span></section><section class="panel"><strong>${completed.length}</strong><span class="muted">завершённых прохождений</span></section><section class="panel"><strong>${completed.reduce((n,r)=>n+(r.chatCount||0),0)}</strong><span class="muted">обращений к помощнику в прохождениях</span></section></div><section class="panel table-scroll" style="margin-top:20px"><table><thead><tr><th>Модуль</th><th>Первые ответы</th><th>Повторные попытки</th><th>Сохранение</th><th>Подробности</th><th>Скачать</th></tr></thead><tbody>${completed.map((r,i)=>`<tr><td>${esc(moduleTitle(r.module))}<br><small>${new Date(r.finishedAt).toLocaleString('ru-RU')}</small></td><td>${r.firstScore??'—'} / ${r.questionCount||r.caseIds?.length||3}</td><td>${Math.max(0,(r.answers?.length||0)-(r.questionCount||r.caseIds?.length||3))}</td><td>${r.synced?'Сервер и браузер':'Этот браузер'}</td><td><button class="link-button" data-action="detail:${i}">Ответы</button></td><td><button class="link-button" data-action="png:${i}" aria-label="Скачать PNG: ${esc(moduleTitle(r.module))}">PNG</button></td></tr>`).join('')||'<tr><td colspan="6">Пока нет завершённых разборов.</td></tr>'}</tbody></table></section><div id="result-detail"></div>`}
@@ -413,7 +416,7 @@ function addBubble({text, role, at, recommendation}) {
   }
   $('#chat-log').append(bubble);
 }
-function openChat(focusInput=true){$('#zico-panel').classList.remove('hidden');requestAnimationFrame(()=>{if($('#zico-open').getAttribute('aria-expanded')==='true')$('#zico-panel').classList.add('is-open')}); $('#zico-open').setAttribute('aria-expanded','true');drawChat();if(focusInput)$('#chat-input').focus()}
+function openChat(focusInput=true){clearTimeout(closeTimer);$('#zico-panel').classList.remove('hidden');requestAnimationFrame(()=>{if($('#zico-open').getAttribute('aria-expanded')==='true')$('#zico-panel').classList.add('is-open')}); $('#zico-open').setAttribute('aria-expanded','true');drawChat();if(focusInput)$('#chat-input').focus()}
 let closeTimer;function closeChat(restoreFocus=true){$('#zico-panel').classList.remove('is-open');clearTimeout(closeTimer);closeTimer=setTimeout(()=>{if(!$('#zico-panel').classList.contains('is-open'))$('#zico-panel').classList.add('hidden')},180);$('#zico-open').setAttribute('aria-expanded','false');if(restoreFocus)$('#zico-open').focus()}
 const clearChat = document.createElement('button');
 clearChat.type = 'button';
@@ -436,7 +439,7 @@ $('#chat-form').onsubmit = async event => {
   const text = $('#chat-input').value.trim();
   if (!text) return;
   if (!user || demo) {
-    chat = [{role:'notice', text:'Чтобы получить подсказку Zico, войди в учебный аккаунт.'}];
+    chat = [{role:'notice', text:'Чтобы получить подсказку Zico, сначала введи имя в разделе «Профиль».'}];
     drawChat();
     return;
   }
@@ -608,7 +611,10 @@ function showFinalCheck() {
       button.querySelector('span').textContent = pairs[matching[i]]?.[1] || 'Перетащи действие сюда';
     });
     selected = null;
-    form.querySelectorAll('[data-card]').forEach(button => button.setAttribute('aria-pressed','false'));
+    form.querySelectorAll('[data-card]').forEach(button => {
+      button.hidden = matching.includes(Number(button.dataset.card));
+      button.setAttribute('aria-pressed','false');
+    });
   }
   form.querySelectorAll('[data-card]').forEach(card => {
     const index = Number(card.dataset.card);
@@ -640,6 +646,7 @@ function showFinalCheck() {
   form.querySelectorAll('[data-target]').forEach(target => target.onclick = () => assign(target, selected));
   form.onsubmit = async event => {
     event.preventDefault();
+    if (run.finalCheck) return;
     const data = new FormData(form);
     try {
       run.finalCheck = gradeFinalCheck({multiple: questions.map((_,i) => data.getAll('q'+i).map(Number)), matching});
@@ -648,6 +655,20 @@ function showFinalCheck() {
       return;
     }
     form.querySelector('[type=submit]').disabled = true;
-    await finish();
+    if (run.finalCheck.correct.every(Boolean)) {
+      await finish();
+      return;
+    }
+    form.querySelectorAll('input, [data-card], [data-target]').forEach(control => { control.disabled = true; });
+    const feedback = document.createElement('div');
+    feedback.className = 'feedback error';
+    feedback.innerHTML = `<p>Итоговая проверка: ${run.finalCheck.score} из ${run.finalCheck.count}. Если хочешь разобрать ошибку, спроси Zico.</p>
+      <div class="button-row">${btn('Спросить Zico','zico','secondary')}<button class="button primary" type="button">Сохранить результат</button></div>`;
+    form.append(feedback);
+    feedback.querySelector('.primary').onclick = async event => {
+      event.currentTarget.disabled = true;
+      await finish();
+    };
+    openChat(false);
   };
 }

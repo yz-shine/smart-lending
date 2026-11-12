@@ -1,3 +1,4 @@
+import {questions, pairs} from './final-check.js';
 import {getCase, getModule} from './content.js';
 
 const dateFormat = new Intl.DateTimeFormat('ru-RU', {
@@ -87,6 +88,20 @@ function prepareReport(result, username, downloadedAt, context) {
     {rows: header, fill: '#103729', border: '#52b984'},
     {rows: summary, fill: '#dbefe2', border: '#52b984'},
     ...cards,
+    ...(result.finalCheck ? [{
+      fill: '#eaf7f0', border: '#329367',
+      rows: [
+        line('ИТОГОВЫЕ ВОПРОСЫ', 23, '#155337', 700),
+        ...questions.flatMap((question, i) => [
+          line(question.title, 22, '#112d21', 700),
+          line('Выбрано: ' + result.finalCheck.multiple[i].map(n => question.options[n]).join('; ')),
+          line(result.finalCheck.correct[i] ? 'Верно' : 'Требуется пересмотр')
+        ]),
+        line('Сопоставление', 22, '#112d21', 700),
+        ...pairs.map(([situation], i) => line(situation + ' → ' + pairs[result.finalCheck.matching[i]][1])),
+        line(result.finalCheck.correct[questions.length] ? 'Верно' : 'Требуется пересмотр')
+      ]
+    }] : []),
     {rows: [line('Письменные объяснения сохранены без автоматической оценки.', 19)], fill: '#e6efe9', border: '#c1d7cb'}
   ];
 }
