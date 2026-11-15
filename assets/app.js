@@ -39,7 +39,31 @@ function saveChat() {
   const messages = chat.filter(message => message.role !== 'notice').slice(-60);
   if (!write(key, messages)) toast('Не удалось сохранить переписку в этом браузере.');
 }
-function navigate(page){if(run&&!['play'].includes(page)&&!confirm('Выйти из текущего разбора? Незавершённые ответы этой попытки не сохранятся.'))return;run=null;location.hash=page;if(location.hash==='#'+page)render()}
+const leaveDialog = document.createElement('dialog');
+leaveDialog.className = 'logout-dialog';
+leaveDialog.setAttribute('aria-labelledby','leave-title');
+leaveDialog.innerHTML = `<form method="dialog"><h2 id="leave-title">Выйти из модуля?</h2>
+  <p>Вы уверены, что хотите выйти? Ответы текущего прохождения не сохранятся.</p>
+  <div class="button-row"><button class="button secondary" value="cancel" autofocus>Отмена</button>
+  <button class="button primary" value="leave">Выйти из модуля</button></div></form>`;
+document.body.append(leaveDialog);
+let pendingPage;
+function askToLeave(page) {
+  if (leaveDialog.open) return;
+  pendingPage = page;
+  leaveDialog.returnValue = 'cancel';
+  leaveDialog.showModal();
+}
+leaveDialog.addEventListener('close', () => {
+  if (leaveDialog.returnValue !== 'leave') return;
+  run = null;
+  navigate(pendingPage);
+});
+function navigate(page) {
+  if (run && page !== 'play') {askToLeave(page);return;}
+  location.hash = page;
+  render();
+}
 let renderFrame = 0;
 let renderedPage;
 let stopHero = () => {};
@@ -214,9 +238,16 @@ feedback.setAttribute('tabindex', '-1');
 feedback.focus({preventScroll:true});
 window.scrollTo({top:scrollTop, behavior:'instant'});
 if (!run.answers.at(-1).correct) inviteChat();}}
-async function finish(){const result={...run,complete:true,finishedAt:new Date().toISOString(),questionCount:run.caseIds.length+run.finalCheck.count,firstScore:run.caseIds.filter(id=>run.answers.find(a=>a.caseId===id)?.correct).length+run.finalCheck.score,finalCorrect:run.answers.filter(a=>a.caseId===run.caseIds.at(-1)).at(-1)?.correct,chatCount:run.helpCount};delete result.order;localResults.unshift(result);write(resultKey(),localResults);run=null;if(!demo){try{const saved=await api('results',{result});Object.assign(result,saved.result,{synced:true});write(resultKey(),localResults)}catch{toast('Результат сохранён в браузере. Отправка на сервер пока не удалась.')}}location.hash='progress';render()}
+async function finish(){const result={...run,complete:true,finishedAt:new Date().toISOString(),questionCount:run.caseIds.length+run.finalCheck.count,firstScore:run.caseIds.filter(id=>run.answers.find(a=>a.caseId===id)?.correct).length+run.finalCheck.score,finalCorrect:run.answers.filter(a=>a.caseId===run.caseIds.at(-1)).at(-1)?.correct,chatCount:run.helpCount};delete result.order;localResults.unshift(result);write(resultKey(),localResults);run=null;if(!demo){try{const saved=await api('results',{result});Object.assign(result,saved.result,{synced:true});write(resultKey(),localResults)}catch{toast('Результат сохранён в браузере. Отправка на сервер пока не удалась.')}}resultsPage=0;location.hash='progress';render()}
 
-function progress(){const completed=localResults.filter(x=>x.complete && getModule(x.module));main.innerHTML=head('Личный кабинет','Мои результаты','Здесь разделены первые ответы, повторные попытки и обращения за помощью. Письменные объяснения требуют проверки преподавателем.')+`<div class="stats-grid"><section class="panel"><strong>${new Set(completed.map(x=>x.module)).size}</strong><span class="muted">модулей пройдено</span></section><section class="panel"><strong>${completed.length}</strong><span class="muted">завершённых прохождений</span></section><section class="panel"><strong>${completed.reduce((n,r)=>n+(r.chatCount||0),0)}</strong><span class="muted">обращений к помощнику в прохождениях</span></section></div><section class="panel table-scroll" style="margin-top:20px"><table><thead><tr><th>Модуль</th><th>Первые ответы</th><th>Повторные попытки</th><th>Сохранение</th><th>Подробности</th><th>Скачать</th></tr></thead><tbody>${completed.map((r,i)=>`<tr><td>${esc(moduleTitle(r.module))}<br><small>${new Date(r.finishedAt).toLocaleString('ru-RU')}</small></td><td>${r.firstScore??'—'} / ${r.questionCount||r.caseIds?.length||3}</td><td>${Math.max(0,(r.answers?.length||0)-(r.questionCount||r.caseIds?.length||3))}</td><td>${r.synced?'Сервер и браузер':'Этот браузер'}</td><td><button class="link-button" data-action="detail:${i}">Ответы</button></td><td><button class="link-button" data-action="png:${i}" aria-label="Скачать PNG: ${esc(moduleTitle(r.module))}">PNG</button></td></tr>`).join('')||'<tr><td colspan="6">Пока нет завершённых разборов.</td></tr>'}</tbody></table></section><div id="result-detail"></div>`}
+const resultsPerPage = 5;
+let resultsPage = 0;
+function progress(){const completed=localResults.filter(x=>x.complete && getModule(x.module));const pageCount=Math.max(1,Math.ceil(completed.length/resultsPerPage));resultsPage=Math.min(resultsPage,pageCount-1);const offset=resultsPage*resultsPerPage;main.innerHTML=head('Личный кабинет','Мои результаты','Здесь разделены первые ответы, повторные попытки и обращения за помощью. Письменные объяснения требуют проверки преподавателем.')+`<div class="stats-grid"><section class="panel"><strong>${new Set(completed.map(x=>x.module)).size}</strong><span class="muted">модулей пройдено</span></section><section class="panel"><strong>${completed.length}</strong><span class="muted">завершённых прохождений</span></section><section class="panel"><strong>${completed.reduce((n,r)=>n+(r.chatCount||0),0)}</strong><span class="muted">обращений к помощнику в прохождениях</span></section></div><section class="panel table-scroll" style="margin-top:20px"><table><thead><tr><th>Модуль</th><th>Первые ответы</th><th>Повторные попытки</th><th>Сохранение</th><th>Подробности</th><th>Скачать</th></tr></thead><tbody>${completed.slice(offset,offset+resultsPerPage).map((r,index)=>`<tr><td>${esc(moduleTitle(r.module))}<br><small>${new Date(r.finishedAt).toLocaleString('ru-RU')}</small></td><td>${r.firstScore??'—'} из ${r.questionCount||r.caseIds?.length||3}${r.finalCheck?`<br><small>Ситуации: ${r.firstScore-r.finalCheck.score} из ${r.caseIds.length}<br>Итоговые вопросы: ${r.finalCheck.score} из ${r.finalCheck.count}</small>`:''}</td><td>${Math.max(0,(r.answers?.length||0)-(r.caseIds?.length||3))}</td><td>${r.synced?'Сервер и браузер':'Этот браузер'}</td><td><button class="link-button" data-action="detail:${offset+index}">Ответы</button></td><td><button class="link-button" data-action="png:${offset+index}" aria-label="Скачать PNG: ${esc(moduleTitle(r.module))}">PNG</button></td></tr>`).join('')||'<tr><td colspan="6">Пока нет завершённых разборов.</td></tr>'}</tbody></table></section>
+${pageCount>1?`<nav class="button-row" aria-label="Страницы истории">
+<button type="button" class="button secondary" data-action="results-prev" ${resultsPage===0?'disabled':''}>Назад</button>
+<span>Страница ${resultsPage+1} из ${pageCount}</span>
+<button type="button" class="button secondary" data-action="results-next" ${resultsPage===pageCount-1?'disabled':''}>Дальше</button></nav>`:''}
+<div id="result-detail"></div>`}
 async function syncResults() {
   const account = user;
   const key = resultKey();
@@ -504,7 +535,7 @@ document.addEventListener('pointerdown', event => {
   if ($('#zico-open').getAttribute('aria-expanded') !== 'true') return;
   if (!event.target.closest('#zico-panel, #zico-open, [data-action="zico"]')) closeChat(false);
 });
-document.addEventListener('click',async e=>{const b=e.target.closest('[data-action],[data-nav]');if(!b)return;const action=b.dataset.action||b.dataset.nav;if(['home','modules','progress','about','original','glossary','login'].includes(action)){navigate(action);return}if(action.startsWith('section:')){const [,id,target]=action.split(':');navigate('module/'+id+'/'+({'example':'examples','module-practice':'practice','module-test':'test'}[target]||'theory'));return}if(action.startsWith('tab:')){const [,id,tab]=action.split(':');navigate('module/'+id+'/'+tab);return}if(action.startsWith('module:')){navigate('module/'+action.split(':')[1]);return}if(action.startsWith('anchor:')){document.getElementById(action.split(':')[1])?.scrollIntoView({behavior:'smooth'});return}if(action==='course-map'){document.getElementById('course-map')?.scrollIntoView({behavior:'smooth'});return}if(['examples','practice-hub','test-hub'].includes(action)){navigate(action);return}if(action.startsWith('start:')){if(run&&!confirm('Начать заново?'))return;start(action.split(':')[1]);return}if(action==='zico')openChat();else if(action.startsWith('route:')){run.route=action.split(':')[1];run.caseIds=selectPracticeCases(getModule(run.module),shuffle,run.route);run.step=1;run.phase=run.module==='telegram'?'address-lesson':run.route==='support'?'material':'question';run.order=shuffleOptions(run.caseIds[1]);render()}else if(action==='material-next'){run.phase='question';render()}else if(action==='retry'){if(run.answers.length>=60){toast('Слишком много повторных попыток. Начни новый разбор.');return}run.phase='question';run.order=shuffleOptions(run.caseIds[run.step]);render()}else if(action==='next'){if(run.step===0){run.phase='route';render()}else if(run.step===run.caseIds.length-1){run.phase='final-check';render();window.scrollTo(0,0)}else{run.step++;run.phase=run.module==='telegram'&&run.step===run.caseIds.length-2?'address-task':'question';run.order=shuffleOptions(run.caseIds[run.step]);render()}}else if(action.startsWith('png:')){
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-action],[data-nav]');if(!b)return;const action=b.dataset.action||b.dataset.nav;if(action==='results-prev'||action==='results-next'){resultsPage+=action==='results-prev'?-1:1;progress();return;}if(['home','modules','progress','about','original','glossary','login'].includes(action)){navigate(action);return}if(action.startsWith('section:')){const [,id,target]=action.split(':');navigate('module/'+id+'/'+({'example':'examples','module-practice':'practice','module-test':'test'}[target]||'theory'));return}if(action.startsWith('tab:')){const [,id,tab]=action.split(':');navigate('module/'+id+'/'+tab);return}if(action.startsWith('module:')){navigate('module/'+action.split(':')[1]);return}if(action.startsWith('anchor:')){document.getElementById(action.split(':')[1])?.scrollIntoView({behavior:'smooth'});return}if(action==='course-map'){document.getElementById('course-map')?.scrollIntoView({behavior:'smooth'});return}if(['examples','practice-hub','test-hub'].includes(action)){navigate(action);return}if(action.startsWith('start:')){if(run&&!confirm('Начать заново?'))return;start(action.split(':')[1]);return}if(action==='zico')openChat();else if(action.startsWith('route:')){run.route=action.split(':')[1];run.caseIds=selectPracticeCases(getModule(run.module),shuffle,run.route);run.step=1;run.phase=run.module==='telegram'?'address-lesson':run.route==='support'?'material':'question';run.order=shuffleOptions(run.caseIds[1]);render()}else if(action==='material-next'){run.phase='question';render()}else if(action==='retry'){if(run.answers.length>=60){toast('Слишком много повторных попыток. Начни новый разбор.');return}run.phase='question';run.order=shuffleOptions(run.caseIds[run.step]);render()}else if(action==='next'){if(run.step===0){run.phase='route';render()}else if(run.step===run.caseIds.length-1){run.phase='final-check';render();window.scrollTo(0,0)}else{run.step++;run.phase=run.module==='telegram'&&run.step===run.caseIds.length-2?'address-task':'question';run.order=shuffleOptions(run.caseIds[run.step]);render()}}else if(action.startsWith('png:')){
   const result = localResults.filter(item => item.complete && getModule(item.module))[Number(action.split(':')[1])];
   if (!result || b.disabled) return;
   b.disabled = true;
@@ -596,7 +627,15 @@ $('#logout-confirm').onclick = async () => {
   }
 };
 
-window.addEventListener('hashchange',()=>{if(run&&location.hash!=='#play'){if(confirm('Покинуть незавершённый разбор?'))run=null;else{location.hash='play';return}}render()});
+window.addEventListener('hashchange', () => {
+  if (run && location.hash !== '#play') {
+    const page = location.hash.slice(1) || 'home';
+    history.replaceState(null, '', '#play');
+    askToLeave(page);
+    return;
+  }
+  render();
+});
 let lastOriginal='';window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==document.querySelector('iframe')?.contentWindow||e.data?.type!=='delivery-result')return;const payload=e.data.payload;const sig=JSON.stringify(payload.final);if(sig===lastOriginal)return;lastOriginal=sig;write('zico.original.'+(user?.id||'guest'),payload);toast('Ответ исходного модуля сохранён в этом браузере. SVG можно скачать внутри модуля.');});
 async function init(){try{const d=await api('auth');cloudReady=d.ready;user=d.user||null;if(user)loadLocal()}catch{}render()}init();
 
@@ -612,8 +651,8 @@ function showFinalCheck() {
     </fieldset>`).join('')}
     <fieldset><legend>Сопоставь ситуацию со способом проверки</legend>
       <p class="small muted">Перетащи карточку действия на ситуацию или выбери карточку и нажми на ситуацию.</p>
-      <div class="matching-options">${[2,0,1].map(i => `<button type="button" class="button secondary match-card" data-card="${i}" aria-pressed="false">${pairs[i][1]}</button>`).join('')}</div>
-      <div class="matching-targets">${pairs.map(([label],i) => `<button type="button" class="match-target" data-target="${i}"><strong>${label}</strong><span>Перетащи действие сюда</span></button>`).join('')}</div>
+      <div class="matching-columns"><div><h4>Действия</h4><div class="matching-options">${[2,0,1].map(i => `<button type="button" class="button secondary match-card" data-card="${i}" aria-pressed="false">${pairs[i][1]}</button>`).join('')}</div>
+      </div><div><h4>Ситуации</h4><div class="matching-targets">${pairs.map(([label],i) => `<button type="button" class="match-target" data-target="${i}"><strong>${label}</strong><span>Перетащи действие сюда</span></button>`).join('')}</div></div></div>
     </fieldset>
     <p class="error-text" role="alert"></p>
     <div class="button-row"><button class="button primary" type="submit">Посмотреть результат</button></div>`;
@@ -626,7 +665,9 @@ function showFinalCheck() {
     if (previous >= 0) matching[previous] = -1;
     matching[Number(target.dataset.target)] = card;
     form.querySelectorAll('[data-target]').forEach((button, i) => {
-      button.querySelector('span').textContent = pairs[matching[i]]?.[1] || 'Перетащи действие сюда';
+      const placed = matching[i] >= 0;
+      button.classList.toggle('match-filled', placed);
+      button.querySelector('span').textContent = placed ? '✓ ' + pairs[matching[i]][1] : 'Перетащи действие сюда';
     });
     selected = null;
     form.querySelectorAll('[data-card]').forEach(button => {

@@ -119,3 +119,14 @@ main{view-transition-name:course-page}::view-transition-old(root),::view-transit
   .module-heading .module-tabs { align-self: flex-end; max-width: 100%; }
 }
 @media(max-width:600px) { .help-grid { grid-template-columns: 1fr; } }
+
+.matching-columns { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:1rem; align-items:start; }
+.matching-columns h4 { margin:.5rem 0; }
+.matching-columns .match-card { width:100%; text-align:left; cursor:grab; }
+.matching-columns .match-target { min-height:5rem; }
+.matching-columns .match-filled { background:#dff3e7; border:2px solid #22774e; }
+.matching-columns .match-filled span { font-weight:700; color:#155337; }
+@media(max-width:480px) {
+  .matching-columns { gap:.45rem; overflow-wrap:anywhere; }
+  .matching-columns .match-card,.matching-columns .match-target { padding:.5rem; font-size:.85rem; }
+}

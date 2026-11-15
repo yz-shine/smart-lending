@@ -100,5 +100,3 @@ for (const [moduleId, id, from, message, context, question, choices, explanation
 export function shuffle(items, rng=Math.random){const a=[...items];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 export const getModule=id=>modules.find(m=>m.id===id);
 export const getCase=id=>modules.flatMap(m=>m.cases).find(c=>c.id===id);
-
-modules.splice(3);
