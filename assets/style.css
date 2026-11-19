@@ -130,3 +130,9 @@ main{view-transition-name:course-page}::view-transition-old(root),::view-transit
   .matching-columns { gap:.45rem; overflow-wrap:anywhere; }
   .matching-columns .match-card,.matching-columns .match-target { padding:.5rem; font-size:.85rem; }
 }
+
+.message-context-heading {display:flex;gap:16px;align-items:start;justify-content:space-between;margin:8px 0 16px}
+.message-context-heading .role-label {flex:1}
+.message-context-heading .case-context {flex:2;margin:0;padding:12px 16px;background:#fff2c6;border:1px solid #e2c468;border-radius:12px;color:#493d1a;font-size:15px;line-height:1.5}
+.message-context-heading .case-context strong {display:block;color:#594619;margin-bottom:4px}
+@media(max-width:650px){.message-context-heading{flex-direction:column}.message-context-heading .case-context{width:100%}}

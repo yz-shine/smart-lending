@@ -1,4 +1,4 @@
-import {questions, pairs} from './final-check.js';
+import {getFinalCheck} from './final-check.js';
 import {getCase, getModule} from './content.js';
 
 const dateFormat = new Intl.DateTimeFormat('ru-RU', {
@@ -37,6 +37,7 @@ function wrapText(context, value, width) {
 }
 
 function prepareReport(result, username, downloadedAt, context) {
+  const {questions, pairs} = getFinalCheck(result.finalCheck?.version === 2 ? result.finalCheck.module : null);
   const attempts = result.answers || [];
   const cases = result.caseIds?.length ? result.caseIds : [...new Set(attempts.map(answer => answer.caseId))];
   const line = (text, size = 23, color = '#28483a', weight = 400) => {

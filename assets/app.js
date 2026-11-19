@@ -1,6 +1,6 @@
 import {showAddressPractice} from './address-practice.js';
 import {showMacroPractice} from './macro-practice.js';
-import {questions, pairs, gradeFinalCheck} from './final-check.js';
+import {getFinalCheck, gradeFinalCheck} from './final-check.js';
 import {modules,shuffle,getModule,getCase} from './content.js';
 import {saveResultImage} from './result-image.js';
 import {lessons,practiceLength,selectPracticeCases,gradeChoice,supportExample} from './course.js';
@@ -208,7 +208,7 @@ function shuffleOptions(caseId) {
   return order;
 }
 function start(id){if(!user){pendingModule=id;navigate('login');return}const m=getModule(id);run={id:uuid(),module:id,step:0,phase:'question',route:null,answers:[],caseIds:selectPracticeCases(m,shuffle),order:[],startedAt:new Date().toISOString(),helpCount:0};run.order=shuffleOptions(run.caseIds[0]);location.hash='play';render()}
-function messageMarkup(c,m){const mark=text=>{let html=esc(text);for(const [id,label] of c.evidence||[])for(const part of label.split(' · ')){const pattern=part.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp(pattern,'gi'),match=>`<button type="button" class="frag" data-evidence="${id}" aria-pressed="false">${match}</button>`)}return html};return `<article class="case-message ${({telegram:'telegram-message',delivery:'delivery-message',bank:'bank-message',study:'study-message',market:'market-message'})[m.id]||''}"><div class="message-app-label">${({telegram:'Telegram',delivery:'Входящее письмо',bank:'Уведомление банка',study:'Учебная почта',market:'Сообщение по объявлению'})[m.id]||'Учебное сообщение'}</div><div class="role-label">${mark(c.from)}</div><p class="scenario-message">${mark(c.message)}</p>${c.messages?`<div class="compare message-comparison">${c.messages.map(msg=>`<article class="mail"><b>${esc(msg.label)}</b><p>${esc(msg.text)}</p></article>`).join('')}</div>`:''}</article>${c.context?`<p class="case-context"><strong>Контекст ситуации</strong> ${mark(c.context)}</p>`:''}${c.evidence?'<p class="note">Нажимай на выделенные фрагменты, которые повлияли на решение. Повторное нажатие снимает отметку. Отмечать всё подряд не нужно.</p>':''}`}
+function messageMarkup(c,m){const mark=text=>{let html=esc(text);for(const [id,label] of c.evidence||[])for(const part of label.split(' · ')){const pattern=part.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp(pattern,'gi'),match=>`<button type="button" class="frag" data-evidence="${id}" aria-pressed="false">${match}</button>`)}return html};return `<article class="case-message ${({telegram:'telegram-message',delivery:'delivery-message',bank:'bank-message',study:'study-message',market:'market-message'})[m.id]||''}"><div class="message-app-label">${({telegram:'Telegram',delivery:'Входящее письмо',bank:'Уведомление банка',study:'Учебная почта',market:'Сообщение по объявлению'})[m.id]||'Учебное сообщение'}</div><div class="message-context-heading"><div class="role-label">${mark(c.from)}</div>${c.context?`<p class="case-context"><strong>Контекст ситуации</strong> ${mark(c.context)}</p>`:''}</div><p class="scenario-message">${mark(c.message)}</p>${c.messages?`<div class="compare message-comparison">${c.messages.map(msg=>`<article class="mail"><b>${esc(msg.label)}</b><p>${esc(msg.text)}</p></article>`).join('')}</div>`:''}</article>${c.evidence?'<p class="note">Нажимай на выделенные фрагменты, которые повлияли на решение. Повторное нажатие снимает отметку. Отмечать всё подряд не нужно.</p>':''}`}
 function play(){
 if (run.phase === 'address-lesson' || run.phase === 'address-task') {
   const lesson = run.phase === 'address-lesson';
@@ -646,6 +646,7 @@ async function init(){try{const d=await api('auth');cloudReady=d.ready;user=d.us
 const composeInput=$('#chat-input');function resizeCompose(){composeInput.style.height='auto';composeInput.style.height=Math.min(composeInput.scrollHeight,100)+'px'}composeInput.addEventListener('input',resizeCompose);composeInput.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();$('#chat-form').requestSubmit()}});$('#chat-form').addEventListener('submit',()=>requestAnimationFrame(resizeCompose));
 
 function showFinalCheck() {
+  const {questions, pairs} = getFinalCheck(run.module);
   main.innerHTML = head('Итоговая проверка', getModule(run.module).title, 'Ответь на три задания. Каждый верный ответ добавит один балл.');
   const form = document.createElement('form');
   form.className = 'panel quick-check';
@@ -712,7 +713,7 @@ function showFinalCheck() {
     if (run.finalCheck) return;
     const data = new FormData(form);
     try {
-      run.finalCheck = gradeFinalCheck({multiple: questions.map((_,i) => data.getAll('q'+i).map(Number)), matching});
+      run.finalCheck = gradeFinalCheck({version:2,module:run.module,multiple: questions.map((_,i) => data.getAll('q'+i).map(Number)), matching});
     } catch (error) {
       form.querySelector('[role=alert]').textContent = error.message;
       return;
