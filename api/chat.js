@@ -214,8 +214,10 @@ export default async function handler(req, res) {
       [user.id, context?.id || null]
     );
 
-    const learningModule = ['HINT', 'READY_ANSWER', 'INSUFFICIENT'].includes(decision.category)
+    const learningModule = ['HINT', 'OPEN', 'READY_ANSWER', 'INSUFFICIENT'].includes(decision.category)
+      && decision.suggest_module === true
       && decision.hint !== 'privacy' && typeof decision.module === 'string'
+      && decision.module !== context?.id
       ? getModule(decision.module)
       : null;
 
