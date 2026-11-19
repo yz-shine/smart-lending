@@ -515,7 +515,7 @@ $('#chat-form').onsubmit = async event => {
   try {
     const answer = await api('chat', {text, history, module});
     if (user !== sender) return;
-    const recommendation = answer.recommendation;
+    const recommendation = chat.some(message => message.recommendation) ? undefined : answer.recommendation;
     if (recommendation) {
       recommendation.completed ||= localResults.some(
         result => result.module === recommendation.module && result.complete
